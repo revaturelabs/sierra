@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "CaliberConfig",
+    "GitRepo": "https://github.com/revaturelabs/caliber-config.git"
+  },
+  {
+    "Name": "CaliberEureka",
+    "GitRepo": "https://github.com/revaturelabs/caliber-eureka.git"
+  },
+  {
+    "Name": "CaliberZuul",
+    "GitRepo": "https://github.com/revaturelabs/caliber-zuul.git"
+  },
+  {
+    "Name": "CaliberTrainingService",
+    "GitRepo": "https://github.com/revaturelabs/caliber-training-service.git"
+  },
+  {
+    "Name": "CaliberDocumentService",
+    "GitRepo": "https://github.com/revaturelabs/caliber-document-service.git"
+  }
+]
