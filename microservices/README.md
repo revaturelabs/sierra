@@ -30,3 +30,12 @@ Finally activate the pipenv environment. You should activate the environment whe
 $ pipenv shell
 ```
 
+To run tests, run either of the following:
+
+```bash
+$ # Run the py.test command directly
+$ pytest
+$
+$ # Or invoke it indirectly through the test file
+$ ./sierra_test.py
+```
