@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import troposphere.cloudformation as cf
+from troposphere import Sub
 from troposphere import Parameter, Ref, Template
 
 
@@ -21,6 +22,7 @@ def services_file(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('location', type=str)
+    parser.add_argument('--format', default='json', choices=['json', 'yaml'])
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -50,13 +52,18 @@ def main():
 
     cluster = template.add_resource(cf.Stack(
         'Cluster',
-        TemplateURL='https://s3.amazonaws.com/${TemplateBucket}/templates/ecs-cluster.yaml',
+        TemplateURL=Sub('https://s3.amazonaws.com/${TemplateBucket}/templates/ecs-cluster.yaml'),
         Parameters={
             'InstanceType': '',
         }
     ))
 
-    print(template.to_json())
+    if args.format == 'json':
+        result = template.to_json()
+    else:
+        result = template.to_yaml()
+
+    print(result)
 
 
 if __name__ == '__main__':
