@@ -4,6 +4,8 @@
 
 ## Development
 
+### Setup
+
 First, install pipenv (using Python3):
 
 ```bash
@@ -29,6 +31,10 @@ Finally activate the pipenv environment. You should activate the environment whe
 ```bash
 $ pipenv shell
 ```
+
+### Tests
+
+Before you can run tests, you will need to [setup AWS credentials](https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration) on your local workstation.
 
 To run tests, run either of the following:
 
