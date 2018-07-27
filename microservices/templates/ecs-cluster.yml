@@ -118,7 +118,7 @@ Resources:
       AutoScalingRollingUpdate:
         MinInstancesInService: 1
         MaxBatchSize: 1
-        PauseTime: PT15M
+        PauseTime: PT5M
         WaitOnResourceSignals: true
 
   LaunchConfiguration:
