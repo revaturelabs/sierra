@@ -1,0 +1,41 @@
+{
+  "default": {
+    "git": {
+      "github-user": "goeppes",
+      "github-token": "blah",
+      "github-branch": "master"
+    }
+  },
+  "services": [
+    {
+      "name": "CaliberConfig",
+      "git": {
+        "github-repo": "revaturelabs/caliber-config"
+      }
+    },
+    {
+      "name": "CaliberEureka",
+      "git": {
+        "github-repo": "revaturelabs/caliber-eureka"
+      }
+    },
+    {
+      "name": "CaliberZuul",
+      "git": {
+        "github-repo": "revaturelabs/caliber-zuul"
+      }
+    },
+    {
+      "name": "CaliberTrainingService",
+      "git": {
+        "github-repo": "revaturelabs/caliber-training-service"
+      }
+    },
+    {
+      "name": "CaliberDocumentService",
+      "git": {
+        "github-repo": "revaturelabs/caliber-document-service"
+      }
+    }
+  ]
+}

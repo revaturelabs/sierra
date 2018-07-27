@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  Deploy an ECS cluster.
+
+
+Parameters:
+
+  InstanceType:
+    Type: String
+    Default: t2.micro
+
+  ClusterSize:
+    Type: Number
+    Default: 2
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SourceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+
+
+Mappings:
+
+  RegionToImageId:
+    ap-northeast-1:
+      ImageId: ami-2b4d26c6
+    ap-northeast-2:
+      ImageId: ami-2095224e
+    ap-south-1:
+      ImageId: ami-921d2efd
+    ap-southeast-1:
+      ImageId: ami-3b1d59d1
+    ap-southeast-2:
+      ImageId: ami-09bf186b
+    ca-central-1:
+      ImageId: ami-06ac2162
+    eu-central-1:
+      ImageId: ami-c123232a
+    eu-west-1:
+      ImageId: ami-74e7fe9e
+    eu-west-2:
+      ImageId: ami-e8a04a8f
+    eu-west-3:
+      ImageId: ami-2187375c
+    sa-east-1:
+      ImageId: ami-0a8caa66
+    us-east-1:
+      ImageId: ami-fbc1c684
+    us-east-2:
+      ImageId: ami-8f4e74ea
+    us-west-1:
+      ImageId: ami-638c6100
+    us-west-2:
+      ImageId: ami-7ddf8005
+
+
+Resources:
+
+  EcsHostRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  EcsHostInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EcsHostRole
+
+  EcsHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName}-hosts
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref SourceSecurityGroup
+          IpProtocol: -1
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref Subnets
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      DesiredCapacity: !Ref ClusterSize
+      MaxSize: !Ref ClusterSize
+      MinSize: !Ref ClusterSize
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - ECS Host
+          PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
+        PauseTime: PT5M
+        WaitOnResourceSignals: true
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref EcsHostInstanceProfile
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref EcsHostSecurityGroup
+      UserData:
+        'Fn::Base64': !Sub |
+          #!/bin/bash
+          yum install -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchConfiguration
+          /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource AutoScalingGroup
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          commands:
+            01_add_instance_to_cluster:
+              command: !Sub echo ECS_CLUSTER=${Cluster} > /etc/ecs/ecs.config
+          files:
+            '/etc/cfn/cfn-hup.conf':
+              mode: 000400
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+            '/etc/cfn/hooks.d/cfn-auto-reloader.conf':
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.ContainerInstances.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchConfiguration
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+
+Outputs:
+  ClusterName:
+    Value: !Ref Cluster
