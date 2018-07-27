@@ -28,13 +28,17 @@ def main():
     group.add_argument(
         '--meta-git-repo',
         action='store_const', const=meta_git_repo, dest='func',
-        help='Indicates location is a URL of a valid meta Git repository.',
+        help='indicates location is a url of a meta git repo',
     )
     group.add_argument(
         '--services-file',
         action='store_const', const=services_file, dest='func',
-        help='Indicates location is a local file path of a Sierra config file.',
+        help='indicates location is a path of a sierra config file',
     )
+
+    if not sys.argv[1:]:
+        parser.print_help()
+        parser.exit()
 
     args = parser.parse_args()
 
@@ -54,7 +58,7 @@ def main():
         'Cluster',
         TemplateURL=Sub('https://s3.amazonaws.com/${TemplateBucket}/templates/ecs-cluster.yaml'),
         Parameters={
-            'InstanceType': '',
+            'InstanceType': 't2.micro',
         }
     ))
 
