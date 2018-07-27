@@ -1,4 +1,4 @@
-Description: Master Template
+Description: Master Monolith Template
 
 AWSTemplateFormatVersion: 2010-09-09
 
@@ -52,6 +52,7 @@ Parameters:
       - prod
 
 Resources:
+#Database Stack
   DatabaseStack:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -69,7 +70,17 @@ Resources:
       Tags:
         - Key: Name
           Value: DatabaseStack
-  
+#Server Stack
+  ServerStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/server.yml"
+      Parameters: {}
+      Tags:
+        - Key: Name
+          Value: ServerStack
+#Network stack          
   NetworkStack:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -79,3 +90,13 @@ Resources:
       Tags:
         - Key: Name
           Value: NetworkStack
+#Jenkins Stack
+  JenkinsStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/jenkins.yml"
+      Parameters: {}
+      Tags:
+        - Key: Name
+          Value: JenkinsStack
