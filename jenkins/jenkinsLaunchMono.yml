@@ -70,6 +70,7 @@ Resources:
         - !Ref 'AWS::Region'
         - AMI
       InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
       SecurityGroups: 
         - !Ref JenkinsSecurityGroup
       BlockDeviceMappings: 
@@ -78,6 +79,9 @@ Resources:
               VolumeType: "gp2"
               DeleteOnTermination: "false"
               VolumeSize: "10"
+      Tags:
+        - Key: Name
+          Value: !Ref InstanceName
 
 
 
