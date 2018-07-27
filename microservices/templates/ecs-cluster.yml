@@ -8,24 +8,23 @@ Description: >
 Parameters:
 
   InstanceType:
-    Description: The instance type for ECS hosts.
     Type: String
     Default: t2.micro
 
   ClusterSize:
-    Description: The number of ECS hosts to deploy.
     Type: Number
     Default: 2
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
 
   SourceSecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
 
   Subnets:
-    Description: The subnets to deploy this cluster to.
     Type: List<AWS::EC2::Subnet::Id>
 
   VPC:
-    Description: The VPC to deploy this cluster to.
     Type: AWS::EC2::VPC::Id
 
 
@@ -128,6 +127,7 @@ Resources:
       ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref EcsHostInstanceProfile
+      KeyName: !Ref KeyName
       SecurityGroups:
         - !Ref SecurityGroup
       UserData:
