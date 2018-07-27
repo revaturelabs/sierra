@@ -85,19 +85,19 @@ Resources:
       Roles:
         - !Ref EcsHostRole
 
+  EcsHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName}-hosts
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref SourceSecurityGroup
+          IpProtocol: -1
+
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: !Ref AWS::StackName
-
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Sub ${AWS::StackName}-hosts
-      SecurityGroupIngress:
-        - SourceSecurityGroupId: !Ref SourceSecurityGroup
-          IpProtocol: -1
-      VpcId: !Ref VPC
 
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -129,7 +129,7 @@ Resources:
       IamInstanceProfile: !Ref EcsHostInstanceProfile
       KeyName: !Ref KeyName
       SecurityGroups:
-        - !Ref SecurityGroup
+        - !Ref EcsHostSecurityGroup
       UserData:
         'Fn::Base64': !Sub |
           #!/bin/bash
