@@ -6,9 +6,10 @@
 
 import argparse
 import sys
-import troposphere.cloudformation as cf
+
 from troposphere import Sub
 from troposphere import Parameter, Template
+from troposphere.cloudformation import Stack
 
 
 S3_DOMAIN = 's3.amazonaws.com'
@@ -37,12 +38,12 @@ def build_template(services):
     def template_url(name):
         return Sub(f'https://{S3_DOMAIN}/${{{bucket.title}}}/templates/{name}')
 
-    template.add_resource(cf.Stack(
+    template.add_resource(Stack(
         'Network',
         TemplateURL=template_url('network.yml'),
     ))
 
-    template.add_resource(cf.Stack(
+    template.add_resource(Stack(
         'Cluster',
         TemplateURL=template_url('ecs-cluster.yml'),
         Parameters={
@@ -50,7 +51,7 @@ def build_template(services):
         }
     ))
 
-    template.add_resource(cf.Stack(
+    template.add_resource(Stack(
         'LoadBalancer',
         TemplateURL=template_url('load-balancer.yml'),
     ))
