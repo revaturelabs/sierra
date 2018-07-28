@@ -2,27 +2,28 @@
 
 > CloudFormation template generator for microservices
 
+## Requirements
+
+This project requires Python 3.6.
+
 ## Development
 
 ### Setup
 
-First, install pipenv (using Python3):
+First, install pipenv:
 
 ```bash
 $ pip install pipenv
 ```
 
-If you're using MacOS, you can install using Homebrew instead:
-
-```bash
-$ brew install pipenv
-```
-
 Then, clone this repo and install the dependencies:
 
 ```bash
+# Clone this repo into the current directory
 $ git clone https://github.com/revaturelabs/sierra.git
+# Navigate to the microservices version of sierra
 $ cd sierra/microservices/
+# Install all dependencies, including development only
 $ pipenv install --dev
 ```
 
@@ -39,9 +40,9 @@ Before you can run tests, you will need to [setup AWS credentials](https://boto3
 To run tests, run either of the following:
 
 ```bash
-$ # Run the py.test command directly
+# Run the py.test command directly
 $ pytest
-$
-$ # Or invoke it indirectly through the test file
+
+# Or invoke it indirectly through the test file
 $ ./sierra_test.py
 ```
