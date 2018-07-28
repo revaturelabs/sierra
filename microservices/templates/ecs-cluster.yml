@@ -7,6 +7,15 @@ Description: >
 
 Parameters:
 
+  ImageId:
+    Type : AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id
+    Description: >
+      An SSM parameter that resolves to a valid AMI ID.
+
+      This is the AMI that will be used to create ECS hosts.
+      The default value is the currently recommended ECS-optimized AMI.
+
   InstanceType:
     Type: String
     Default: t2.micro
@@ -26,41 +35,6 @@ Parameters:
 
   VPC:
     Type: AWS::EC2::VPC::Id
-
-
-Mappings:
-
-  RegionToImageId:
-    ap-northeast-1:
-      ImageId: ami-2b4d26c6
-    ap-northeast-2:
-      ImageId: ami-2095224e
-    ap-south-1:
-      ImageId: ami-921d2efd
-    ap-southeast-1:
-      ImageId: ami-3b1d59d1
-    ap-southeast-2:
-      ImageId: ami-09bf186b
-    ca-central-1:
-      ImageId: ami-06ac2162
-    eu-central-1:
-      ImageId: ami-c123232a
-    eu-west-1:
-      ImageId: ami-74e7fe9e
-    eu-west-2:
-      ImageId: ami-e8a04a8f
-    eu-west-3:
-      ImageId: ami-2187375c
-    sa-east-1:
-      ImageId: ami-0a8caa66
-    us-east-1:
-      ImageId: ami-fbc1c684
-    us-east-2:
-      ImageId: ami-8f4e74ea
-    us-west-1:
-      ImageId: ami-638c6100
-    us-west-2:
-      ImageId: ami-7ddf8005
 
 
 Resources:
@@ -124,7 +98,7 @@ Resources:
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      ImageId: !Ref ImageId
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref EcsHostInstanceProfile
       KeyName: !Ref KeyName
