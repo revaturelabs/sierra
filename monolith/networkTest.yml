@@ -165,6 +165,13 @@ Resources:
         - Key: Name
           Value: Server2
 
+
+
+
+
+
+
+
   publicNLB:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
@@ -200,14 +207,61 @@ Resources:
       Name: 'targetsForELB'
       Port: 80
       Protocol: TCP
-      Targets:
-        - !Ref Server1
-        - !Ref Server2
       Tags:
         - Key: Name
           Value: alb-tg        
       VpcId: !Ref VPC
 
+
+  EC2AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones: 
+        - 'us-east-1a'
+      #LaunchConfigurationName: !Ref Ec2Instance
+      InstanceId: !Ref Server1
+      MinSize: 0
+      MaxSize: 1
+      DesiredCapacity: 1
+      HealthCheckGracePeriod: 300
+      TargetGroupARNs:
+        - !Ref publicNLBTargetGroup
+      Tags:
+        - Key: Name
+          Value: 'auto-scaling-group'
+          PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: '0'
+        MaxBatchSize: '1'
+        PauseTime: PT15M
+        WaitOnResourceSignals: 'true'
+
+
+  Ec2Instance:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: ami-b70554c8
+      KeyName: rhel-cloud-admin
+      SecurityGroups:
+        - !Ref 'WebAppSecurityGroup'
+      InstanceType: t2.micro
+      # BlockDeviceMappings:
+      #   - DeviceName: /dev/sda1
+      #     Ebs:
+      #       VolumeSize: '100'
+      #       VolumeType: gp2
+      UserData: 
+      #Everything after pipe | has \n after it
+        Fn::Base64: |
+          #!/bin/bash
+          yum -y update
+          yum -y install httpd
+          echo Server2 >> /var/www/html/index.html
+          service httpd start
 
 
 
