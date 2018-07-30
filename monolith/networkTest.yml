@@ -16,11 +16,13 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       CidrBlock: 10.0.0.0/24
+      AvailabilityZone: 'us-east-1a'
   PrivateSubnet:
     Type: 'AWS::EC2::Subnet'
     Properties:
       VpcId: !Ref VPC
       CidrBlock: 10.0.1.0/24
+      AvailabilityZone: 'us-east-1a'
   InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties: {}
@@ -114,7 +116,7 @@ Resources:
       Tags:
         - Key: Name
           Value: NatInstance
-  EC2: 
+  Server1: 
     Type: AWS::EC2::Instance
     Properties: 
       ImageId: ami-b70554c8
@@ -127,9 +129,87 @@ Resources:
           SubnetId: !Ref PrivateSubnet
           GroupSet:
             - !Ref WebAppSecurityGroup
+      UserData: 
+      #Everything after pipe | has \n after it
+        Fn::Base64: |
+          #!/bin/bash
+          yum -y update
+          yum -y install httpd
+          echo Server1 >> /var/www/html/index.html
+          service httpd start
       Tags:
         - Key: Name
-          Value: Server
+          Value: Server1
+  Server2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-b70554c8
+      KeyName: rhel-cloud-admin
+      InstanceType: t2.micro
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: false
+          DeleteOnTermination: true
+          SubnetId: !Ref PrivateSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      UserData: 
+      #Everything after pipe | has \n after it
+        Fn::Base64: |
+          #!/bin/bash
+          yum -y update
+          yum -y install httpd
+          echo Server2 >> /var/www/html/index.html
+          service httpd start
+      Tags:
+        - Key: Name
+          Value: Server2
+
+  publicNLB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Type: network
+      Name: 'load-balancer'
+      Scheme: internet-facing
+      Subnets: 
+        - !Ref PublicSubnet
+      Tags:
+        - Key: Name
+          Value: 'this-loadbalancer'
+
+  NLBListener:
+    Type : AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref publicNLBTargetGroup
+      LoadBalancerArn: !Ref publicNLB
+      Port: 80
+      Protocol: TCP
+
+  publicNLBTargetGroup:
+    # Condition: UseALBCond
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      # HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Name: 'targetsForELB'
+      Port: 80
+      Protocol: TCP
+      Targets:
+        - !Ref Server1
+        - !Ref Server2
+      Tags:
+        - Key: Name
+          Value: alb-tg        
+      VpcId: !Ref VPC
+
+
+
 
 
   WebAppSecurityGroup:
