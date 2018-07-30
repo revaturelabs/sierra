@@ -4,7 +4,7 @@
 
 There are currently two versions of Sierra for different infrastructures:
 
-* [Microservices](microservice/) - For microservice applications.
+* [Microservices](microservices/) - For microservice applications.
 * [Monolith](monolith/) - For monolith applications.
 
 ## Documentation
