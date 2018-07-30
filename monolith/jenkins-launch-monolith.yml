@@ -1,35 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-'''
-Requirements:
-  Must have a key in desired region.
-'''
+
+# Requirements:
+#   Must have a key in desired region.
+
 
 Parameters:
-  InstanceName:
-    Description: Name for your Jenkins server
-    Type: String
-    Default: Jenkins
-    AllowedPattern: "[-_ a-zA-Z0-9]*" 
-    ConstraintDescription: Alphanumeric values, dashes, spaces, and underscores.
-  #Region:
-  #  !FindInMap [Region, Selector, Value]
   KeyName:
-    Description: Existing key pair name
-    Type: String
-    Default: key-name
-    MinLength: '6'
-    MaxLength: '20'
-    AllowedPattern: "[-_ a-zA-Z0-9]*"
-    ConstraintDescription: Alphanumeric values, dashes, spaces, and underscores.
-  InstanceType:
-    Description: Instance type for Jenkins server
-    Type: String
-    Default: t2.micro
-    AllowedValues:
-      - t2.micro
-    ConstraintDescription: Only t2.micro allowed.
-  
+    Type: 'AWS::EC2::KeyPair::KeyName'
+
+  # Uncomment the following lines for dynamic parameter options, and update the "Resources" field to reflect these changes.
+
+  # InstanceName:
+  #   Description: Name for your Jenkins server
+  #   Type: String
+  #   Default: Jenkins
+  #   AllowedPattern: "[-_ a-zA-Z0-9]*" 
+  #   ConstraintDescription: Alphanumeric values, dashes, spaces, and underscores.
+  # InstanceType:
+  #   Description: Instance type for Jenkins server
+  #   Type: String
+  #   Default: t2.micro
+  #   AllowedValues:
+  #     - t2.micro
+  #   ConstraintDescription: Only t2.micro allowed.
 
 
 Mappings:
@@ -74,25 +68,20 @@ Resources:
         - RegionToImageId
         - !Ref 'AWS::Region'
         - AMI
-      InstanceType: !Ref InstanceType
+      InstanceType: t2.micro
       KeyName: !Ref KeyName
       SecurityGroups: 
         - !Ref JenkinsSecurityGroup
       BlockDeviceMappings: 
-          - DeviceName: "/dev/sda1"
+          - DeviceName: '/dev/sda1'
             Ebs: 
               VolumeType: "gp2"
-              DeleteOnTermination: "false"
-              VolumeSize: "10"
+              DeleteOnTermination: 'true'
+              VolumeSize: '10'
       Tags:
         - Key: Name
-          Value: !Ref InstanceName
+          Value: JenkinsCiServer
 
-
-
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: 1501bbd3-a9ab-4e3f-919f-e3ceb9e61a18
 
   JenkinsSecurityGroup:
       Type: AWS::EC2::SecurityGroup
