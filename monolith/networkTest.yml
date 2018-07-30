@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  VPC:
+    Description: 'The actual VPC. Created with 2 subnets and an internet gateway.'
+  
+
+Resources:
+  #VPC Set up
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+  PublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+  PrivateSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties: {}
+
+  #Routes
+  PublicSubnetRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Subnet Route Table.
+  PrivateSubnetRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Subnet Route Table.
+  RouteToInternetGateway:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      GatewayId: !Ref InternetGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  RouteToNatInstance:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      InstanceId: !Ref NatInstance
+      DestinationCidrBlock: 0.0.0.0/0
+
+
+  PublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet
+  PrivateSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet
+  InternetGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+
+
+
+  #Instance Configurations
+  Bastion:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: rhel-cloud-admin
+      InstanceType: t2.micro
+      ImageId: ami-b70554c8
+      # - RegionToImageId
+      # - !Ref 'AWS::Region'
+      # - ImageId
+      # Use this if no NetworkInterfaces
+      # SecurityGroups: []
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Bastion
+
+
+  # NEed to change src/dst checks
+  NatInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-01623d7b
+      SourceDestCheck: false #needs to be false for NAT instance to work.
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: NatInstance
+  EC2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-b70554c8
+      KeyName: rhel-cloud-admin
+      InstanceType: t2.micro
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: false
+          DeleteOnTermination: true
+          SubnetId: !Ref PrivateSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Server
+
+
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
