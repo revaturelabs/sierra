@@ -9,83 +9,83 @@ Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Enter a valid KeyPair Name
-  WebInstanceType:
-    Type: String
-    Description: Enter one of the possible instance type for web server
-    AllowedValues:
-      - t2.large
-      - m4.large
-      - m4.xlarge
-      - c4.large
-  WebMinSize:
-    Type: String
-    Description: Minimum number of instances in auto scaling group
-  WebMaxSize:
-    Type: String
-    Description: Maximum number of instances in auto scaling group
-  DBUsername:
-    Type: String
-    Description: Enter a valid Database username
-    MinLength: 1
-    MaxLength: 16
-    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-  DBPassword:
-    Type: String
-    Description: Enter a valid Database password
-    NoEcho: true
-    MinLength: 1
-    MaxLength: 41
-    AllowedPattern: "[a-zA-Z0-9]*"
-  DBInstanceType:
-    Type: String
-    Description: Enter one of the possible instance type for database
-    AllowedValues:
-      - db.t2.micro
-      - db.t2.small
-      - db.t2.medium
-      - db.t2.large
-  Environment:
-    Type: String
-    Description: Select the appropriate environment
-    AllowedValues:
-      - dev
-      - prod
+  # WebInstanceType:
+  #   Type: String
+  #   Description: Enter one of the possible instance type for web server
+  #   AllowedValues:
+  #     - t2.large
+  #     - m4.large
+  #     - m4.xlarge
+  #     - c4.large
+  # WebMinSize:
+  #   Type: String
+  #   Description: Minimum number of instances in auto scaling group
+  # WebMaxSize:
+  #   Type: String
+  #   Description: Maximum number of instances in auto scaling group
+  # DBUsername:
+  #   Type: String
+  #   Description: Enter a valid Database username
+  #   MinLength: 1
+  #   MaxLength: 16
+  #   AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+  # DBPassword:
+  #   Type: String
+  #   Description: Enter a valid Database password
+  #   NoEcho: true
+  #   MinLength: 1
+  #   MaxLength: 41
+  #   AllowedPattern: "[a-zA-Z0-9]*"
+  # DBInstanceType:
+  #   Type: String
+  #   Description: Enter one of the possible instance type for database
+  #   AllowedValues:
+  #     - db.t2.micro
+  #     - db.t2.small
+  #     - db.t2.medium
+  #     - db.t2.large
+  # Environment:
+  #   Type: String
+  #   Description: Select the appropriate environment
+  #   AllowedValues:
+  #     - dev
+  #     - prod
 
 Resources:
 #Database Stack
-  DatabaseStack:
-    Type: "AWS::CloudFormation::Stack"
-    Properties:
-      TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/database.yml"
-      Parameters:
-        DBUsername:
-          Ref: DBUsername
-        DBPassword:
-          Ref: DBPassword
-        DBInstanceType:
-          Ref: DBInstanceType
-        Environment:
-          Ref: Environment
-      Tags:
-        - Key: Name
-          Value: DatabaseStack
+  # DatabaseStack:
+  #   Type: "AWS::CloudFormation::Stack"
+  #   Properties:
+  #     TemplateURL:
+  #       Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/database.yml"
+  #     Parameters:
+  #       DBUsername:
+  #         Ref: DBUsername
+  #       DBPassword:
+  #         Ref: DBPassword
+  #       DBInstanceType:
+  #         Ref: DBInstanceType
+  #       Environment:
+  #         Ref: Environment
+  #     Tags:
+  #       - Key: Name
+  #         Value: DatabaseStack
 #Server Stack
-  ServerStack:
-    Type: "AWS::CloudFormation::Stack"
-    Properties:
-      TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/server.yml"
-      Parameters: {}
-      Tags:
-        - Key: Name
-          Value: ServerStack
+  # ServerStack:
+  #   Type: "AWS::CloudFormation::Stack"
+  #   Properties:
+  #     TemplateURL:
+  #       Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/server.yml"
+  #     Parameters: {}
+  #     Tags:
+  #       - Key: Name
+  #         Value: ServerStack
 #Network stack          
   NetworkStack:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/network.yml"
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/network.yml"
       Parameters: {}
       Tags:
         - Key: Name
@@ -95,7 +95,7 @@ Resources:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/jenkins.yml"
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith.yml"
       Parameters:
         KeyName:
           Ref: KeyPair
