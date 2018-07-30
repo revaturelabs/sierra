@@ -96,7 +96,9 @@ Resources:
     Properties:
       TemplateURL:
         Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/jenkins.yml"
-      Parameters: {}
+      Parameters:
+        KeyName:
+          Ref: KeyPair
       Tags:
         - Key: Name
           Value: JenkinsStack
