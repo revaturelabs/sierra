@@ -9,20 +9,20 @@ Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Enter a valid KeyPair Name
-  # WebInstanceType:
-  #   Type: String
-  #   Description: Enter one of the possible instance type for web server
-  #   AllowedValues:
-  #     - t2.large
-  #     - m4.large
-  #     - m4.xlarge
-  #     - c4.large
-  # WebMinSize:
-  #   Type: String
-  #   Description: Minimum number of instances in auto scaling group
-  # WebMaxSize:
-  #   Type: String
-  #   Description: Maximum number of instances in auto scaling group
+  WebInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for web server
+    AllowedValues:
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - c4.large
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group
   # DBUsername:
   #   Type: String
   #   Description: Enter a valid Database username
@@ -86,7 +86,15 @@ Resources:
     Properties:
       TemplateURL:
         Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/network.yml"
-      Parameters: {}
+      Parameters:
+        KeyPair:
+          Ref: KeyPair
+        WebInstanceType:
+          Ref: WebInstanceType
+        WebMinSize:
+          Ref: WebMinSize
+        WebMaxSize:
+          Ref: WebMaxSize
       Tags:
         - Key: Name
           Value: NetworkStack
