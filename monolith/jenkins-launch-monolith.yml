@@ -3,6 +3,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 # Requirements:
 #   Must have a key in desired region.
+#   Subscribe to the following site: https://aws.amazon.com/marketplace/pp/B00NNZUF3Q/
 
 
 Parameters:
@@ -81,6 +82,11 @@ Resources:
       Tags:
         - Key: Name
           Value: JenkinsCiServer
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install groovy -y
 
 
   JenkinsSecurityGroup:
