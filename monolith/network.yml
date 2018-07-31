@@ -244,15 +244,35 @@ Resources:
           - Key: Name
             Value: 'auto-scaling-group'
             PropagateAtLaunch: true
-      # CreationPolicy:
-      #   ResourceSignal:
-      #     Timeout: PT15M
-      # UpdatePolicy:
-      #   AutoScalingRollingUpdate:
-      #     MinInstancesInService: '0'
-      #     MaxBatchSize: '1'
-      #     PauseTime: PT15M
-      #     WaitOnResourceSignals: 'true'
+
+  ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: EC2AutoScalingGroup
+      Cooldown: '1'
+      ScalingAdjustment: '1'
+
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '60'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance
+        is down
+      Period: '60'
+      AlarmActions:
+      - Ref: ScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: EC2AutoScalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+
 
   #Security Group
   WebAppSecurityGroup:
