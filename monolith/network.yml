@@ -1,5 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 
+Description: Contains the VPC, subnets, Tomcat server, ELB, auto-scaling-group.
+
 Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
@@ -9,10 +11,6 @@ Parameters:
     Description: Enter one of the possible instance type for web server
     AllowedValues:
       - t2.micro
-      - t2.large
-      - m4.large
-      - m4.xlarge
-      - c4.large
   WebMinSize:
     Type: Number
     Description: Minimum number of instances in auto scaling group
@@ -100,14 +98,22 @@ Resources:
       VpcId: 
         Ref: VPC
       CidrBlock: 10.0.0.0/24
-      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: Name
+          Value: Public Subnet
   PrivateSubnet:
     Type: 'AWS::EC2::Subnet'
+    DependsOn: PublicSubnet
     Properties:
       VpcId: 
         Ref: VPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: Name
+          Value: Private Subnet
+      #Gets the public subnet
+      AvailabilityZone: 
+        Fn::GetAtt: [PublicSubnet, AvailabilityZone]
   InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties: {}
@@ -209,33 +215,30 @@ Resources:
         - Key: Name
           Value: NatInstance
 
-  Server1: 
-    Type: AWS::EC2::Instance
-    Properties: 
+  TomcatServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
       ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
-      KeyName:
-        Ref: KeyPair
-      InstanceType:
+      InstanceType: 
         Ref: WebInstanceType
+      KeyName: 
+        Ref: KeyPair
       NetworkInterfaces:
         - DeviceIndex: 0
           AssociatePublicIpAddress: false
           DeleteOnTermination: true
-          SubnetId: 
-            Ref: PrivateSubnet
+          SubnetId: !Ref PrivateSubnet
           GroupSet:
-            - Ref: WebAppSecurityGroup
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: TomcatServer
       UserData: 
-      #Everything after pipe | has \n after it
         Fn::Base64: |
           #!/bin/bash
           yum -y update
           yum -y install httpd
-          echo Server1 >> /var/www/html/index.html
           service httpd start
-      Tags:
-        - Key: Name
-          Value: Server1
 
 
 
@@ -265,18 +268,20 @@ Resources:
       Protocol: TCP
 
   ElbTargetGroup:
-    # Condition: UseALBCond
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
+      #HealthCheckIntervalSeconds: 10
+      #HealthCheckPath: /
+      #HealthCheckProtocol: HTTP
       # HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      #HealthyThresholdCount: 2
+      #UnhealthyThresholdCount: 2
       Name: 'targetsForELB'
       Port: 80
       Protocol: TCP
+      Targets:
+        - Id: 
+            Ref: TomcatServer
       Tags:
         - Key: Name
           Value: alb-tg        
@@ -289,13 +294,17 @@ Resources:
       Type: AWS::AutoScaling::AutoScalingGroup
       Properties:
         AvailabilityZones: 
-          - 'us-east-1a'
+          - Fn::GetAtt: [PrivateSubnet, AvailabilityZone]
+          #Nice
         #LaunchConfigurationName: Ref: Ec2Instance
         InstanceId: 
-          Ref: Server1
-        MinSize: 0
-        MaxSize: 1
-        DesiredCapacity: 1
+          Ref: TomcatServer
+        MinSize: 
+          Ref: WebMinSize
+        MaxSize: 
+          Ref: WebMaxSize
+        DesiredCapacity: 
+          Ref: WebMinSize
         HealthCheckGracePeriod: 300
         TargetGroupARNs:
           - Ref: ElbTargetGroup
