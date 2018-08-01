@@ -62,7 +62,7 @@ def build_template(services):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('location', type=str)
-    parser.add_argument('--format', default='json', choices=['json', 'yaml'])
+    parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
 
     group = parser.add_mutually_exclusive_group(required=True)
 
