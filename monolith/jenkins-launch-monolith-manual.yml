@@ -1,9 +1,13 @@
+Description: Jenkins server to assist in Continuous Integration
+
 AWSTemplateFormatVersion: '2010-09-09'
 
 
 # Requirements:
 #   Must have a key in desired region.
 #   Subscribe to the following site: https://aws.amazon.com/marketplace/pp/B00NNZUF3Q/
+#   Jenkins username: user
+#   Jenkins password: password
 
 
 Parameters:
@@ -30,7 +34,8 @@ Parameters:
 Mappings:
   RegionToImageId:
     us-east-1:
-      AMI: ami-3f760640
+     # AMI: ami-3f760640
+       AMI: ami-042fe0b9fe879ae6c
     us-east-2:
       AMI: ami-27e1de42
     us-west-1:
