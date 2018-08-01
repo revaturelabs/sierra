@@ -65,8 +65,8 @@ Resources:
           Ref: DBPassword
         DBInstanceType:
           Ref: DBInstanceType
-        Environment:
-          Ref: Environment
+        # Environment:
+        #   Ref: Environment
       Tags:
         - Key: Name
           Value: DatabaseStack
