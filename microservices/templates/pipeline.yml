@@ -50,22 +50,12 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                   - ecr:GetAuthorizationToken
-              - Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+              - Resource: "*"
                 Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:GetObjectVersion
-              - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${Repository}
-                Effect: Allow
-                Action:
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:PutImage
-                  - ecr:InitiateLayerUpload
-                  - ecr:UploadLayerPart
-                  - ecr:CompleteLayerUpload
+                Action: "s3:*"
+              - Resources: "*"
+                Effect: Allow 
+                Action: ssm:GetParameters
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -112,35 +102,13 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Artifacts:
-        Type: CODEPIPELINE
+        Type: NO_ARTIFACTS
       Source:
         Type: CODEPIPELINE
-        BuildSpec: |
-          version: 0.2
-          phases:
-            pre_build:
-              commands:
-                - $(aws ecr get-login --no-include-email)
-                - TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
-                - IMAGE_URI="${REPOSITORY_URI}:${TAG}"
-            build:
-              commands:
-                - docker build --tag "$IMAGE_URI" .
-            post_build:
-              commands:
-                - docker push "$IMAGE_URI"
-                - printf '[{"name":"simple-app","imageUri":"%s"}]' "$IMAGE_URI" > images.json
-          artifacts:
-            files: images.json
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/docker:17.09.0
         Type: LINUX_CONTAINER
-        EnvironmentVariables:
-          - Name: AWS_DEFAULT_REGION
-            Value: !Ref AWS::Region
-          - Name: REPOSITORY_URI
-            Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${Repository}
       Name: !Ref AWS::StackName
       ServiceRole: !Ref CodeBuildServiceRole
 
@@ -152,9 +120,10 @@ Resources:
         Type: S3
         Location: !Ref ArtifactBucket
       Stages:
+      
         - Name: Source
           Actions:
-            - Name: App
+            - Name: Microservice
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
@@ -166,8 +135,9 @@ Resources:
                 Branch: !Ref GitHubBranch
                 OAuthToken: !Ref GitHubToken
               OutputArtifacts:
-                - Name: App
+                - Name: Microservice
               RunOrder: 1
+
         - Name: Build
           Actions:
             - Name: Build
@@ -179,10 +149,11 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
               InputArtifacts:
-                - Name: App
+                - Name: Microservice
               OutputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
+
         - Name: Deploy
           Actions:
             - Name: Deploy
