@@ -93,8 +93,8 @@ Resources:
       DesiredCount: 1 
       LaunchType: EC2
       LoadBalancers:
-      - ContainerName: !Ref ContainerName
-        ContainerPort: 80
-        TargetGroupArn: !Ref TargetGroup
+        - ContainerName: !Ref ContainerName
+          ContainerPort: 80
+          TargetGroupArn: !Ref TargetGroup
       #DeploymentConfiguration
       #Role: IAM roles to make calls to Load balancer
