@@ -1,5 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 
+Description: Contains the VPC, subnets, Tomcat server, ELB, auto-scaling-group.
+
 Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
@@ -9,10 +11,6 @@ Parameters:
     Description: Enter one of the possible instance type for web server
     AllowedValues:
       - t2.micro
-      - t2.large
-      - m4.large
-      - m4.xlarge
-      - c4.large
   WebMinSize:
     Type: Number
     Description: Minimum number of instances in auto scaling group
@@ -30,7 +28,7 @@ Mappings:
     us-west-1:
       ImageId: ami-e0ba5c83
     us-west-2:
-      ImageId: ami-ami-a9d09ed1
+      ImageId: ami-a9d09ed1
     ca-central-1:
       ImageId: ami-0ee86a6a
     ap-south-1:
@@ -53,6 +51,39 @@ Mappings:
       ImageId: ami-2cf54551
     sa-east-1:
       ImageId: ami-6dca9001
+  RegionToNatId:
+    us-east-1:
+      ImageId: ami-01623d7b
+    us-east-2:
+      ImageId: ami-021e3167
+    us-west-1:
+      ImageId: ami-004b0f60
+    us-west-2:
+      ImageId: ami-0541ea7d
+    ca-central-1:
+      ImageId: ami-0b2d906f
+    ap-south-1:
+      ImageId: ami-0c184c63
+    ap-northeast-1: 
+      ImageId: ami-03cf3903
+    ap-northeast-2:
+      ImageId: ami-0199506f
+    ap-southeast-1:
+      ImageId: ami-018c3062
+    ap-southeast-2:
+      ImageId: ami-162c0c75
+    eu-central-1:
+      ImageId: ami-0097b5eb
+    eu-west-1:
+      ImageId: ami-076d5d61
+    eu-west-2:
+      ImageId: ami-0a4c5a6e
+    eu-west-3:
+      ImageId: ami-0fe35572
+    sa-east-1:
+      ImageId: ami-0b81dc67
+
+  
 
 
 Resources:
@@ -64,15 +95,25 @@ Resources:
   PublicSubnet:
     Type: 'AWS::EC2::Subnet'
     Properties:
-      VpcId: !Ref VPC
+      VpcId: 
+        Ref: VPC
       CidrBlock: 10.0.0.0/24
-      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: Name
+          Value: Public Subnet
   PrivateSubnet:
     Type: 'AWS::EC2::Subnet'
+    DependsOn: PublicSubnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId: 
+        Ref: VPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: Name
+          Value: Private Subnet
+      #Gets the public subnet
+      AvailabilityZone: 
+        Fn::GetAtt: [PublicSubnet, AvailabilityZone]
   InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties: {}
@@ -81,61 +122,76 @@ Resources:
   PublicSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
     Properties:
-      VpcId: !Ref VPC
+      VpcId: 
+        Ref: VPC
       Tags:
         - Key: Name
           Value: Public Subnet Route Table.
   PrivateSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
     Properties:
-      VpcId: !Ref VPC
+      VpcId: 
+        Ref: VPC
       Tags:
         - Key: Name
           Value: Private Subnet Route Table.
   RouteToInternetGateway:
     Type: 'AWS::EC2::Route'
     Properties:
-      RouteTableId: !Ref PublicSubnetRouteTable
-      GatewayId: !Ref InternetGateway
+      RouteTableId: 
+        Ref: PublicSubnetRouteTable
+      GatewayId: 
+        Ref: InternetGateway
       DestinationCidrBlock: 0.0.0.0/0
   RouteToNatInstance:
     Type: 'AWS::EC2::Route'
     Properties:
-      RouteTableId: !Ref PrivateSubnetRouteTable
-      InstanceId: !Ref NatInstance
+      RouteTableId: 
+        Ref: PrivateSubnetRouteTable
+      InstanceId: 
+        Ref: NatInstance
       DestinationCidrBlock: 0.0.0.0/0
 
   #Routing associations
   PublicSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
-      RouteTableId: !Ref PublicSubnetRouteTable
-      SubnetId: !Ref PublicSubnet
+      RouteTableId: 
+        Ref: PublicSubnetRouteTable
+      SubnetId: 
+        Ref: PublicSubnet
   PrivateSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
-      RouteTableId: !Ref PrivateSubnetRouteTable
-      SubnetId: !Ref PrivateSubnet
+      RouteTableId: 
+        Ref: PrivateSubnetRouteTable
+      SubnetId: 
+        Ref: PrivateSubnet
   InternetGatewayAttachment:
     Type: 'AWS::EC2::VPCGatewayAttachment'
     Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
+      VpcId: 
+        Ref: VPC
+      InternetGatewayId: 
+        Ref: InternetGateway
 
   #Instance Configurations
   Bastion:
     Type: 'AWS::EC2::Instance'
     Properties:
-      KeyName: rhel-cloud-admin
-      InstanceType: t2.micro
-      ImageId: ami-b70554c8
+      KeyName: 
+        Ref: KeyPair
+      InstanceType:
+        Ref: WebInstanceType
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
       NetworkInterfaces:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: !Ref PublicSubnet
+          SubnetId: 
+            Ref: PublicSubnet
           GroupSet:
-            - !Ref WebAppSecurityGroup
+            - Ref: WebAppSecurityGroup
       Tags:
         - Key: Name
           Value: Bastion
@@ -143,26 +199,30 @@ Resources:
   NatInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
-      InstanceType: t2.micro
-      ImageId: ami-01623d7b
+      InstanceType: 
+        Ref: WebInstanceType
+      ImageId: !FindInMap [RegionToNatId, !Ref 'AWS::Region', ImageId]
       SourceDestCheck: false #needs to be false for NAT instance to work.
       NetworkInterfaces:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: !Ref PublicSubnet
+          SubnetId: 
+            Ref: PublicSubnet
           GroupSet:
-            - !Ref WebAppSecurityGroup
+            - Ref: WebAppSecurityGroup
       Tags:
         - Key: Name
           Value: NatInstance
 
-  Server1: 
-    Type: AWS::EC2::Instance
-    Properties: 
-      ImageId: ami-b70554c8
-      KeyName: rhel-cloud-admin
-      InstanceType: t2.micro
+  TomcatServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      InstanceType: 
+        Ref: WebInstanceType
+      KeyName: 
+        Ref: KeyPair
       NetworkInterfaces:
         - DeviceIndex: 0
           AssociatePublicIpAddress: false
@@ -170,17 +230,15 @@ Resources:
           SubnetId: !Ref PrivateSubnet
           GroupSet:
             - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: TomcatServer
       UserData: 
-      #Everything after pipe | has \n after it
         Fn::Base64: |
           #!/bin/bash
           yum -y update
           yum -y install httpd
-          echo Server1 >> /var/www/html/index.html
           service httpd start
-      Tags:
-        - Key: Name
-          Value: Server1
 
 
 
@@ -192,7 +250,7 @@ Resources:
       Name: 'load-balancer'
       Scheme: internet-facing
       Subnets: 
-        - !Ref PublicSubnet
+        - Ref: PublicSubnet
       Tags:
         - Key: Name
           Value: 'this-loadbalancer'
@@ -202,28 +260,33 @@ Resources:
     Properties:
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref ElbTargetGroup
-      LoadBalancerArn: !Ref Elb
+          TargetGroupArn: 
+            Ref: ElbTargetGroup
+      LoadBalancerArn: 
+        Ref: Elb
       Port: 80
       Protocol: TCP
 
   ElbTargetGroup:
-    # Condition: UseALBCond
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
+      #HealthCheckIntervalSeconds: 10
+      #HealthCheckPath: /
+      #HealthCheckProtocol: HTTP
       # HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      #HealthyThresholdCount: 2
+      #UnhealthyThresholdCount: 2
       Name: 'targetsForELB'
       Port: 80
       Protocol: TCP
+      Targets:
+        - Id: 
+            Ref: TomcatServer
       Tags:
         - Key: Name
           Value: alb-tg        
-      VpcId: !Ref VPC
+      VpcId: 
+        Ref: VPC
 
 
   #Autoscaling configuration
@@ -231,15 +294,20 @@ Resources:
       Type: AWS::AutoScaling::AutoScalingGroup
       Properties:
         AvailabilityZones: 
-          - 'us-east-1a'
-        #LaunchConfigurationName: !Ref Ec2Instance
-        InstanceId: !Ref Server1
-        MinSize: 0
-        MaxSize: 1
-        DesiredCapacity: 1
+          - Fn::GetAtt: [PrivateSubnet, AvailabilityZone]
+          #Nice
+        #LaunchConfigurationName: Ref: Ec2Instance
+        InstanceId: 
+          Ref: TomcatServer
+        MinSize: 
+          Ref: WebMinSize
+        MaxSize: 
+          Ref: WebMaxSize
+        DesiredCapacity: 
+          Ref: WebMinSize
         HealthCheckGracePeriod: 300
         TargetGroupARNs:
-          - !Ref ElbTargetGroup
+          - Ref: ElbTargetGroup
         Tags:
           - Key: Name
             Value: 'auto-scaling-group'
@@ -288,4 +356,5 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-      VpcId: !Ref VPC
+      VpcId: 
+        Ref: VPC
