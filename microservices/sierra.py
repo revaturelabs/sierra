@@ -5,9 +5,10 @@
 """
 
 import argparse
+import json
 import sys
 
-from troposphere import Sub
+from troposphere import GetAtt, Join, Ref, Sub
 from troposphere import Parameter, Template
 from troposphere.cloudformation import Stack
 
@@ -23,7 +24,25 @@ def meta_git_repo(url):
 
 def services_file(path):
     """Creates a list of services from a configuration file."""
-    return []
+
+    def update(old, new):
+        for k, v in new.items():
+            if isinstance(v, dict):
+                old[k] = update(old.get(k, {}), v)
+            else:
+                old.setdefault(k, v)
+        return old
+
+    with open(path) as f:
+        config = json.load(f)
+
+    default = config['default']
+    del config['default']
+
+    for service in config['services']:
+        update(service, default)
+
+    return config['services']
 
 
 def build_template(services):
@@ -33,28 +52,95 @@ def build_template(services):
         'TemplateBucket',
         Description='The S3 bucket containing all of the templates.',
         Type='String',
+        Default='templates.sierra.goeppes',
+    ))
+
+    instance_type = template.add_parameter(Parameter(
+        'InstanceType',
+        Type='String',
+        Default='t2.micro'
+    ))
+
+    cluster_size = template.add_parameter(Parameter(
+        'ClusterSize',
+        Type='Number',
+        Default=1
+    ))
+
+    key_name = template.add_parameter(Parameter(
+        'KeyName',
+        Type='AWS::EC2::KeyPair::KeyName',
+    ))
+
+    source_sg = template.add_parameter(Parameter(
+        'SourceSecurityGroup',
+        Type='AWS::EC2::SecurityGroup::Id',
+    ))
+
+    subnets = template.add_parameter(Parameter(
+        'Subnets',
+        Type='List<AWS::EC2::Subnet::Id>',
+    ))
+
+    target_group = template.add_parameter(Parameter(
+        'TargetGroup',
+        Type='String',
+    ))
+
+    vpc = template.add_parameter(Parameter(
+        'VPC',
+        Type='AWS::EC2::VPC::Id',
     ))
 
     def template_url(name):
         return Sub(f'https://{S3_DOMAIN}/${{{bucket.title}}}/templates/{name}')
 
-    template.add_resource(Stack(
-        'Network',
-        TemplateURL=template_url('network.yml'),
-    ))
+#    template.add_resource(Stack(
+#        'Network',
+#        TemplateURL=template_url('network.yml'),
+#    ))
 
-    template.add_resource(Stack(
+    cluster = template.add_resource(Stack(
         'Cluster',
         TemplateURL=template_url('ecs-cluster.yml'),
         Parameters={
-            'InstanceType': 't2.micro',
+            'ClusterSize': Ref(cluster_size),
+            'InstanceType': Ref(instance_type),
+            'KeyName': Ref(key_name),
+            'SourceSecurityGroup': Ref(source_sg),
+            'Subnets': Join(',', Ref(subnets)),
+            'VPC': Ref(vpc),
         }
     ))
 
-    template.add_resource(Stack(
-        'LoadBalancer',
-        TemplateURL=template_url('load-balancer.yml'),
-    ))
+#    template.add_resource(Stack(
+#        'LoadBalancer',
+#        TemplateURL=template_url('load-balancer.yml'),
+#    ))
+
+    for service in services:
+        template.add_resource(Stack(
+            service['name'] + 'Service',
+            TemplateURL=template_url('ecs-service.yml'),
+            Parameters={
+                'ContainerName': service['name'] + '-container',
+                'ContainerImage': service['docker']['image'],
+                'ServiceName': service['name'] + '-service',
+                'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
+                'TargetGroup': Ref(target_group),
+            }
+        ))
+
+#        template.add_resource(Stack(
+#            service['name'] + 'Pipeline',
+#            TemplateURL=template_url('pipeline.yml'),
+#            Parameters={
+#                'GitRepo': service['git']['github-repo'],
+#                'GitBranch': service['git']['github-branch'],
+#                'GitUser': service['git']['github-user'],
+#                'GitToken': service['git']['github-token'],
+#            }
+#        ))
 
     return template
 
