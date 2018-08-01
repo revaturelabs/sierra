@@ -14,13 +14,17 @@ Parameters:
     Description: Enter a valid Database username
     MinLength: 1
     MaxLength: 16
-    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-  DBPassword:
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"    
+    #     Minimum password enforced by AWS:
+    # MySQL: Must contain from 8 to 41 alphanumeric characters.
+    # Oracle: Must contain from 8 to 30 alphanumeric characters.
+    # SQL Server: Must contain from 8 to 128 alphanumeric characters.
+    DBPassword:
     Type: String
     Description: Enter a valid Database password
     NoEcho: true
-    MinLength: 1
-    MaxLength: 41
+    MinLength: 8
+    MaxLength: 30
     AllowedPattern: "[a-zA-Z0-9]*"
   DBInstanceType:
     Type: String
