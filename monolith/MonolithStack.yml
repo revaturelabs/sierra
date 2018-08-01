@@ -15,11 +15,11 @@ Parameters:
     MinLength: 1
     MaxLength: 16
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"    
-    #     Minimum password enforced by AWS:
+    #     Minimum password policy enforced by AWS:
     # MySQL: Must contain from 8 to 41 alphanumeric characters.
     # Oracle: Must contain from 8 to 30 alphanumeric characters.
     # SQL Server: Must contain from 8 to 128 alphanumeric characters.
-    DBPassword:
+  DBPassword:
     Type: String
     Description: Enter a valid Database password
     NoEcho: true
