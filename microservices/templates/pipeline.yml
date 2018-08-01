@@ -46,17 +46,12 @@ Resources:
               - Resource: "*"
                 Effect: Allow
                 Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                  - ecr:GetAuthorizationToken
+                  - ssm:GetParameters
               - Resource: "*"
                 Effect: Allow
-                Action: "s3:*"
-              - Resources: "*"
-                Effect: Allow 
-                Action: ssm:GetParameters
-
+                Action:
+                  - s3:*
+             
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -102,7 +97,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Artifacts:
-        Type: NO_ARTIFACTS
+        Type: CODEPIPELINE
       Source:
         Type: CODEPIPELINE
       Environment:
