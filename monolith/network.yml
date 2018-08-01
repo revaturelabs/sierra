@@ -11,6 +11,9 @@ Parameters:
     Description: Enter one of the possible instance type for web server
     AllowedValues:
       - t2.micro
+      - t2.large
+      - m4.large
+      - c4.large
   WebMinSize:
     Type: Number
     Description: Minimum number of instances in auto scaling group
