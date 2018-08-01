@@ -12,7 +12,7 @@ Parameters:
     # MySQL: Must contain from 8 to 41 alphanumeric characters.
     # Oracle: Must contain from 8 to 30 alphanumeric characters.
     # SQL Server: Must contain from 8 to 128 alphanumeric characters.
-    DBPassword:
+  DBPassword:
     Type: String
     Description: Enter a valid Database password
     NoEcho: true
@@ -27,7 +27,31 @@ Parameters:
       - db.t2.small
       - db.t2.medium
       - db.t2.large
-
+  #     Storage size ranges enforced by AWS:
+  # MySQL, MariaDB, PostgreSQL:
+  #   gp2: 20 to 16384
+  #   io1: 100 to 16384
+  #   standard: 5 to 3072
+  # Oracle: 
+  #   gp2: 20 to 16384; Single-AZ $0.115 per GB-month/Multi-AZ $0.23 per GB-month
+  #   io1: 100 to 16384; Single-AZ $0.125 per GB-month + $0.10 per IOPS-month/Multi-AZ $0.25 per GB-month + $0.20 per IOPS-month
+  #   standard: 10 to 3072; Single-AZ $0.10 per GB-month + $0.10 per 1 million requests/Multi-AZ $0.20 per GB-month + $0.10 per 1 million requests
+  # SQL Server:
+  #   gp2: 20 to 16384
+  #   io1: 100 to 16384
+  #   standard: 20 to 1024
+  # DBStorageType:
+    # Type: String
+    # Description: Enter one of the possible instance storage type for database
+    # AllowedValues:
+      # - General Purpose (SSD) storage (gp2)
+      # - Provisioned IOPS storage (io1)
+      # - Magnetic storage (standard)
+  # DBStorageSize:
+    # Type: Number
+    # Description: Enter one of the possible instance type for database
+    # MinValue: 
+    # MaxValue:
 Resources:
   # Create the Oracle RDS
   SecurityGroupSierraRDS:
@@ -44,6 +68,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '10'
+        # Ref: DBStorageSize
       DBInstanceClass:
         Ref: DBInstanceType
       Engine: oracle-ee
@@ -53,6 +78,8 @@ Resources:
         Ref: DBPassword
       VPCSecurityGroups:
       - !GetAtt SecurityGroupSierraRDS.GroupId
+      StorageType: standard
+        # Ref: DBStorageType
       Tags:
         - Key: Name
           Value: SierraRDS
