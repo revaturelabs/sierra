@@ -1,3 +1,5 @@
+Description: Jenkins server to assist in Continuous Integration
+
 AWSTemplateFormatVersion: '2010-09-09'
 
 
