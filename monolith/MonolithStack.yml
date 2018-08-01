@@ -103,7 +103,7 @@ Resources:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith.yml"
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith-manual.yml"
       Parameters:
         KeyName:
           Ref: KeyPair
