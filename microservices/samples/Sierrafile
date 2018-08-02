@@ -9,30 +9,50 @@
   "services": [
     {
       "name": "CaliberConfig",
+      "docker": {
+        "image": "revaturesierra/caliber-config",
+        "port": 8888
+      },
       "git": {
         "github-repo": "revaturelabs/caliber-config"
       }
     },
     {
       "name": "CaliberEureka",
+      "docker": {
+        "image": "revaturesierra/caliber-eureka",
+        "port": 8761
+      },
       "git": {
         "github-repo": "revaturelabs/caliber-eureka"
       }
     },
     {
       "name": "CaliberZuul",
+      "docker": {
+        "image": "revaturesierra/caliber-zuul",
+        "port": 9999
+      },
       "git": {
         "github-repo": "revaturelabs/caliber-zuul"
       }
     },
     {
       "name": "CaliberTrainingService",
+      "docker": {
+        "image": "revaturesierra/caliber-training-service",
+        "port": 9898
+      },
       "git": {
         "github-repo": "revaturelabs/caliber-training-service"
       }
     },
     {
       "name": "CaliberDocumentService",
+      "docker": {
+        "image": "revaturesierra/caliber-document-service",
+        "port": 9000
+      },
       "git": {
         "github-repo": "revaturelabs/caliber-document-service"
       }
