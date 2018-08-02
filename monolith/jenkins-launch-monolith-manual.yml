@@ -34,8 +34,8 @@ Parameters:
 Mappings:
   RegionToImageId:
     us-east-1:
-     # AMI: ami-3f760640
-       AMI: ami-042fe0b9fe879ae6c
+      AMI: ami-3f760640
+     # AMI: ami-042fe0b9fe879ae6c
     us-east-2:
       AMI: ami-27e1de42
     us-west-1:
