@@ -48,6 +48,20 @@ def services_file(path):
 def build_template(services):
     template = Template()
 
+    template.add_metadata({
+        'AWS::CloudFormation::Interface': {
+            'ParameterGroups': [
+                {
+                    'Label': {'default': 'AWS Configuration'},
+                    'Parameters': ['AccountId']
+                },
+            ],
+            'ParameterLabels': {
+                'AccountId': {'default': 'AWS Account Id'},
+            }
+        }
+    })
+
     bucket = template.add_parameter(Parameter(
         'TemplateBucket',
         Description='The S3 bucket containing all of the templates.',
@@ -72,31 +86,50 @@ def build_template(services):
         Type='AWS::EC2::KeyPair::KeyName',
     ))
 
-    subnets = template.add_parameter(Parameter(
-        'Subnets',
-        Type='List<AWS::EC2::Subnet::Id>',
+    subnet1_cidr = template.add_parameter(Parameter(
+        'Subnet1Cidr',
+        Type='String',
+        Default='192.172.1.0/24',
     ))
 
-    vpc = template.add_parameter(Parameter(
-        'VPC',
-        Type='AWS::EC2::VPC::Id',
+    subnet2_cidr = template.add_parameter(Parameter(
+        'Subnet2Cidr',
+        Type='String',
+        Default='192.172.2.0/24',
+    ))
+
+    target_group = template.add_parameter(Parameter(
+        'TargetGroup',
+        Type='String',
+    ))
+
+    vpc_cidr = template.add_parameter(Parameter(
+        'VpcCidr',
+        Type='String',
+        Default='192.172.0.0/16',
     ))
 
     def template_url(name):
         return Sub(f'https://{S3_DOMAIN}/${{{bucket.title}}}/templates/{name}')
 
-#    template.add_resource(Stack(
-#        'Network',
-#        TemplateURL=template_url('network.yml'),
-#    ))
+    network = template.add_resource(Stack(
+        'Network',
+        TemplateURL=template_url('network.yml'),
+        Parameters={
+            'Prefix': Ref('AWS::StackName'),
+            'VpcCidr': Ref(vpc_cidr),
+            'Subnet1Cidr': Ref(subnet1_cidr),
+            'Subnet2Cidr': Ref(subnet2_cidr),
+        }
+    ))
 
     elb = template.add_resource(Stack(
         'ELB',
         TemplateURL=template_url('load-balancer.yml'),
         Parameters={
             'Prefix': Ref('AWS::StackName'),
-            'Subnets': Join(',', Ref(subnets)),
-            'VPC': Ref(vpc),
+            'Subnets': GetAtt(network, 'Outputs.Subnets'),
+            'VPC': GetAtt(network, 'Outputs.VpcId'),
         }
     ))
 
@@ -108,8 +141,8 @@ def build_template(services):
             'InstanceType': Ref(instance_type),
             'KeyName': Ref(key_name),
             'SourceSecurityGroup': GetAtt(elb, 'Outputs.SecurityGroup'),
-            'Subnets': Join(',', Ref(subnets)),
-            'VPC': Ref(vpc),
+            'Subnets': GetAtt(network, 'Outputs.Subnets'),
+            'VPC': GetAtt(network, 'Outputs.VpcId'),
         }
     ))
 

@@ -15,12 +15,21 @@ Parameters:
       - m4.large
       - c4.large
   WebMinSize:
-    Type: Number
+    Type: String
     Description: Minimum number of instances in auto scaling group
   WebMaxSize:
-    Type: Number
+    Type: String
     Description: Maximum number of instances in auto scaling group
+  Environment:
+    Type: String
+    Description: Select the appropriate environment
+    AllowedValues:
+      - dev
+      - prod
     
+Conditions:
+  CreateProdResources: !Equals [ !Ref Environment, prod ]
+
 
 Mappings:
   RegionToImageId:
@@ -54,6 +63,9 @@ Mappings:
       ImageId: ami-2cf54551
     sa-east-1:
       ImageId: ami-6dca9001
+  TomcatAmi:
+    us-east-1:
+      ImageId: ami-009be716
   RegionToNatId:
     us-east-1:
       ImageId: ami-01623d7b
@@ -214,6 +226,12 @@ Resources:
             Ref: PublicSubnet
           GroupSet:
             - Ref: WebAppSecurityGroup
+      BlockDeviceMappings:
+        -
+          DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
       Tags:
         - Key: Name
           Value: NatInstance
@@ -221,7 +239,7 @@ Resources:
   TomcatServer:
     Type: 'AWS::EC2::Instance'
     Properties:
-      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      ImageId: !FindInMap [TomcatAmi, !Ref 'AWS::Region', ImageId]
       InstanceType: 
         Ref: WebInstanceType
       KeyName: 
@@ -248,6 +266,7 @@ Resources:
   #Load balancer properties
   Elb:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Condition: CreateProdResources
     Properties:
       Type: network
       Name: 'load-balancer'
@@ -260,6 +279,7 @@ Resources:
 
   ElbListener:
     Type : AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateProdResources
     Properties:
       DefaultActions:
         - Type: forward
@@ -272,13 +292,8 @@ Resources:
 
   ElbTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: CreateProdResources
     Properties:
-      #HealthCheckIntervalSeconds: 10
-      #HealthCheckPath: /
-      #HealthCheckProtocol: HTTP
-      # HealthCheckTimeoutSeconds: 5
-      #HealthyThresholdCount: 2
-      #UnhealthyThresholdCount: 2
       Name: 'targetsForELB'
       Port: 80
       Protocol: TCP
@@ -295,6 +310,7 @@ Resources:
   #Autoscaling configuration
   EC2AutoScalingGroup:
       Type: AWS::AutoScaling::AutoScalingGroup
+      Condition: CreateProdResources
       Properties:
         AvailabilityZones: 
           - Fn::GetAtt: [PrivateSubnet, AvailabilityZone]
@@ -318,6 +334,7 @@ Resources:
 
   ScaleUpPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
+    Condition: CreateProdResources
     Properties:
       AdjustmentType: ChangeInCapacity
       AutoScalingGroupName:
@@ -327,6 +344,7 @@ Resources:
 
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm
+    Condition: CreateProdResources
     Properties:
       EvaluationPeriods: '1'
       Statistic: Average
@@ -361,3 +379,23 @@ Resources:
           CidrIp: 0.0.0.0/0
       VpcId: 
         Ref: VPC
+
+Outputs:
+  VpcId:
+    Description: The ID of the VPC.
+    Value:
+      Ref: VPC
+    Export:
+      Name: VpcId
+  PrivateSubnetId:
+    Description: The ID of the private subnet.
+    Value: 
+      Ref: PrivateSubnet
+    Export:
+      Name: PrivateSubnetId
+  PublicSubnetId:
+    Description: The ID of the public subnet.
+    Value: 
+      Ref: PublicSubnet
+    Export:
+      Name: PublicSubnetId
