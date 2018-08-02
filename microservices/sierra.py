@@ -8,7 +8,7 @@ import argparse
 import json
 import sys
 
-from troposphere import GetAtt, Join, Ref, Sub
+from troposphere import GetAtt, Ref, Sub
 from troposphere import Parameter, Template
 from troposphere.cloudformation import Stack
 
@@ -52,33 +52,35 @@ def build_template(services):
         'AWS::CloudFormation::Interface': {
             'ParameterGroups': [
                 {
-                    'Label': {'default': 'AWS Configuration'},
-                    'Parameters': ['AccountId']
+                    'Label': {'default': 'Network Configuration'},
+                    'Parameters': [
+                        'VpcCidr',
+                        'Subnet1Cidr',
+                        'Subnet2Cidr',
+                    ],
+                },
+                {
+                    'Label': {'default': 'ECS Configuration'},
+                    'Parameters': [
+                        'InstanceType',
+                        'ClusterSize',
+                        'KeyName',
+                    ],
                 },
             ],
-            'ParameterLabels': {
-                'AccountId': {'default': 'AWS Account Id'},
-            }
         }
     })
 
-    bucket = template.add_parameter(Parameter(
-        'TemplateBucket',
-        Description='The S3 bucket containing all of the templates.',
-        Type='String',
-        Default='templates.sierra.goeppes',
+    cluster_size = template.add_parameter(Parameter(
+        'ClusterSize',
+        Type='Number',
+        Default=1
     ))
 
     instance_type = template.add_parameter(Parameter(
         'InstanceType',
         Type='String',
         Default='t2.micro'
-    ))
-
-    cluster_size = template.add_parameter(Parameter(
-        'ClusterSize',
-        Type='Number',
-        Default=1
     ))
 
     key_name = template.add_parameter(Parameter(
@@ -98,9 +100,11 @@ def build_template(services):
         Default='192.172.2.0/24',
     ))
 
-    target_group = template.add_parameter(Parameter(
-        'TargetGroup',
+    bucket = template.add_parameter(Parameter(
+        'TemplateBucket',
+        Description='The S3 bucket containing all of the templates.',
         Type='String',
+        Default='templates.sierra.goeppes',
     ))
 
     vpc_cidr = template.add_parameter(Parameter(
