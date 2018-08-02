@@ -15,10 +15,10 @@ Parameters:
       - m4.large
       - c4.large
   WebMinSize:
-    Type: Number
+    Type: String
     Description: Minimum number of instances in auto scaling group
   WebMaxSize:
-    Type: Number
+    Type: String
     Description: Maximum number of instances in auto scaling group
   Environment:
     Type: String
@@ -285,12 +285,6 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Condition: CreateProdResources
     Properties:
-      #HealthCheckIntervalSeconds: 10
-      #HealthCheckPath: /
-      #HealthCheckProtocol: HTTP
-      # HealthCheckTimeoutSeconds: 5
-      #HealthyThresholdCount: 2
-      #UnhealthyThresholdCount: 2
       Name: 'targetsForELB'
       Port: 80
       Protocol: TCP
@@ -376,3 +370,23 @@ Resources:
           CidrIp: 0.0.0.0/0
       VpcId: 
         Ref: VPC
+
+Outputs:
+  VpcId:
+    Description: The ID of the VPC.
+    Value:
+      Ref: VPC
+    Export:
+      Name: VpcId
+  PrivateSubnetId:
+    Description: The ID of the private subnet.
+    Value: 
+      Ref: PrivateSubnet
+    Export:
+      Name: PrivateSubnetId
+  PublicSubnetId:
+    Description: The ID of the public subnet.
+    Value: 
+      Ref: PublicSubnet
+    Export:
+      Name: PublicSubnetId
