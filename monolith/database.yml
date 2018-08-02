@@ -1,35 +1,57 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation stack for initializing the RDS with SQL scripts on a S3 bucket.
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups:
+      - Label: 
+          default: "Create a database (Leave empty if DB exists)"
+        Parameters: 
+          - DBInstanceName
+          - DBInstanceType
+      - Label: 
+          default: "Use an existing database"
+        Parameters: 
+          - ExistingDBInstanceName
+      - Label: 
+          default: "Database configurations"
+        Parameters: 
+          - DBUsername
+          - DBPassword
 Parameters:
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    # Must follow constraints, can't be blank
   DBInstanceName:
     Type: String
-    Description: Enter a valid Database instance name (AWS automatically sets this to lowercase)
+    Description: New database instance name. Case insensitive, but stored as all lower-case (1-63 alphanumeric, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
     MinLength: 1
-    MaxLength: 30
+    MaxLength: 63
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
   DBUsername:
     Type: String
-    Description: Enter a valid Database username
+    Description: Enter a valid Database username (1-30 alphanumeric)
     MinLength: 1
     MaxLength: 30
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-    #===============================================
-    #     Minimum password enforced by AWS:
-    # MySQL: Must contain from 8 to 41 alphanumeric characters.
-    # Oracle: Must contain from 8 to 30 alphanumeric characters.
-    # SQL Server: Must contain from 8 to 128 alphanumeric characters.
-    #===============================================
+  #===============================================
+  #     Minimum password enforced by AWS:
+  # MySQL: Must contain from 8 to 41 alphanumeric characters.
+  # Oracle: Must contain from 8 to 30 alphanumeric characters.
+  # SQL Server: Must contain from 8 to 128 alphanumeric characters.
+  #===============================================
   DBPassword:
     Type: String
-    Description: Enter a valid Database password (minimum 8 alphanumberic characters)
+    Description: Enter a valid Database password (8-30 alphanumeric characters)
     NoEcho: true
     MinLength: 8
     MaxLength: 30
-    AllowedPattern: "[a-zA-Z0-9]*"
+    AllowedPattern: "[a-zA-Z0-9]*"    
   DBInstanceType:
     Type: String
-    Description: Enter one of the possible instance type for database
+    Description: Enter one of the possible instance types for database.
+    Default: db.t2.micro
     AllowedValues:
       - db.t2.micro
       - db.t2.small
@@ -75,6 +97,7 @@ Resources:
           ToPort: 1521
           CidrIp: 0.0.0.0/0
   SierraRDS:
+    Condition: CreatingNewDB
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '10'
@@ -92,8 +115,8 @@ Resources:
         # Ref: DBStorageType
       DBInstanceIdentifier:
         Ref: DBInstanceName
-      Tags:
-        - Key: Name
-          Value: SierraRDS
+      # DeletionPolicy: Retain
       
-  # Lambda function to initialize RDS with SQL scripts
+Conditions:
+  # Create new database if there is no existing database
+  CreatingNewDB: !Equals [!Ref ExistingDBInstanceName, ""]
