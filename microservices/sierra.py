@@ -72,19 +72,9 @@ def build_template(services):
         Type='AWS::EC2::KeyPair::KeyName',
     ))
 
-    source_sg = template.add_parameter(Parameter(
-        'SourceSecurityGroup',
-        Type='AWS::EC2::SecurityGroup::Id',
-    ))
-
     subnets = template.add_parameter(Parameter(
         'Subnets',
         Type='List<AWS::EC2::Subnet::Id>',
-    ))
-
-    target_group = template.add_parameter(Parameter(
-        'TargetGroup',
-        Type='String',
     ))
 
     vpc = template.add_parameter(Parameter(
@@ -100,6 +90,16 @@ def build_template(services):
 #        TemplateURL=template_url('network.yml'),
 #    ))
 
+    elb = template.add_resource(Stack(
+        'ELB',
+        TemplateURL=template_url('load-balancer.yml'),
+        Parameters={
+            'Prefix': Ref('AWS::StackName'),
+            'Subnets': Join(',', Ref(subnets)),
+            'VPC': Ref(vpc),
+        }
+    ))
+
     cluster = template.add_resource(Stack(
         'Cluster',
         TemplateURL=template_url('ecs-cluster.yml'),
@@ -107,16 +107,11 @@ def build_template(services):
             'ClusterSize': Ref(cluster_size),
             'InstanceType': Ref(instance_type),
             'KeyName': Ref(key_name),
-            'SourceSecurityGroup': Ref(source_sg),
+            'SourceSecurityGroup': GetAtt(elb, 'Outputs.SecurityGroup'),
             'Subnets': Join(',', Ref(subnets)),
             'VPC': Ref(vpc),
         }
     ))
-
-#    template.add_resource(Stack(
-#        'LoadBalancer',
-#        TemplateURL=template_url('load-balancer.yml'),
-#    ))
 
     for service in services:
         template.add_resource(Stack(
@@ -125,9 +120,10 @@ def build_template(services):
             Parameters={
                 'ContainerName': service['name'] + '-container',
                 'ContainerImage': service['docker']['image'],
+                'ContainerPort': service['docker']['port'],
                 'ServiceName': service['name'] + '-service',
                 'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
-                'TargetGroup': Ref(target_group),
+                'TargetGroup': GetAtt(elb, 'Outputs.TargetGroup'),
             }
         ))
 
