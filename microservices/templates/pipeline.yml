@@ -162,10 +162,6 @@ Resources:
                 Provider: CodeBuild
               Configuration:
                 ProjectName: !Ref CodeBuildProject
-              InputArtifacts:
-                - Name: Microservice
-              OutputArtifacts:
-                - Name: BuildOutput
               RunOrder: 1
 
         - Name: Deploy
@@ -180,8 +176,6 @@ Resources:
                 ClusterName: !Ref Cluster
                 ServiceName: !Ref Service
                 FileName: image.json
-              InputArtifacts:
-                - Name: BuildOutput
               RunOrder: 1
 
 
