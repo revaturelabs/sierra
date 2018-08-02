@@ -20,7 +20,16 @@ Parameters:
   WebMaxSize:
     Type: Number
     Description: Maximum number of instances in auto scaling group
+  Environment:
+    Type: String
+    Description: Select the appropriate environment
+    AllowedValues:
+      - dev
+      - prod
     
+Conditions:
+  CreateProdResources: !Equals [ !Ref Environment, prod ]
+
 
 Mappings:
   RegionToImageId:
@@ -248,6 +257,7 @@ Resources:
   #Load balancer properties
   Elb:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Condition: CreateProdResources
     Properties:
       Type: network
       Name: 'load-balancer'
@@ -260,6 +270,7 @@ Resources:
 
   ElbListener:
     Type : AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateProdResources
     Properties:
       DefaultActions:
         - Type: forward
@@ -272,6 +283,7 @@ Resources:
 
   ElbTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: CreateProdResources
     Properties:
       #HealthCheckIntervalSeconds: 10
       #HealthCheckPath: /
@@ -295,6 +307,7 @@ Resources:
   #Autoscaling configuration
   EC2AutoScalingGroup:
       Type: AWS::AutoScaling::AutoScalingGroup
+      Condition: CreateProdResources
       Properties:
         AvailabilityZones: 
           - Fn::GetAtt: [PrivateSubnet, AvailabilityZone]
@@ -318,6 +331,7 @@ Resources:
 
   ScaleUpPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
+    Condition: CreateProdResources
     Properties:
       AdjustmentType: ChangeInCapacity
       AutoScalingGroupName:
@@ -327,6 +341,7 @@ Resources:
 
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm
+    Condition: CreateProdResources
     Properties:
       EvaluationPeriods: '1'
       Statistic: Average
