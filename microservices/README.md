@@ -6,6 +6,8 @@
 
 This project requires Python 3.6.
 
+Your IAM user will need the necessary permissions to use CloudFormation. You will also need to [setup AWS credentials](https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration) on your local workstation.
+
 ## Development
 
 ### Setup
@@ -34,8 +36,6 @@ $ pipenv shell
 ```
 
 ### Tests
-
-Before you can run tests, you will need to [setup AWS credentials](https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration) on your local workstation.
 
 To run tests, run either of the following:
 
