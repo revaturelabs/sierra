@@ -9,6 +9,7 @@ troposphere = "*"
 
 [dev-packages]
 pytest = "*"
+pyinstaller = "*"
 
 [requires]
 python_version = "3.6"

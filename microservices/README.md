@@ -8,6 +8,10 @@ This project requires Python 3.6.
 
 Your IAM user will need the necessary permissions to use CloudFormation. You will also need to [setup AWS credentials](https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration) on your local workstation.
 
+## Installation
+
+Installation instructions will be provided soon.
+
 ## Development
 
 ### Setup
@@ -46,3 +50,13 @@ $ pytest
 # Or invoke it indirectly through the test file
 $ ./sierra_test.py
 ```
+
+### Compiling
+
+To generate a single-file executable, simply run the following:
+
+```bash
+$ pyinstaller sierra.spec
+```
+
+If you are using Windows, this will create a .exe file. If you are using Linux, it will create a binary executable.
