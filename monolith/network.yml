@@ -63,6 +63,9 @@ Mappings:
       ImageId: ami-2cf54551
     sa-east-1:
       ImageId: ami-6dca9001
+  TomcatAmi:
+    us-east-1:
+      ImageId: ami-009be716
   RegionToNatId:
     us-east-1:
       ImageId: ami-01623d7b
@@ -223,6 +226,12 @@ Resources:
             Ref: PublicSubnet
           GroupSet:
             - Ref: WebAppSecurityGroup
+      BlockDeviceMappings:
+        -
+          DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
       Tags:
         - Key: Name
           Value: NatInstance
@@ -230,7 +239,7 @@ Resources:
   TomcatServer:
     Type: 'AWS::EC2::Instance'
     Properties:
-      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      ImageId: !FindInMap [TomcatAmi, !Ref 'AWS::Region', ImageId]
       InstanceType: 
         Ref: WebInstanceType
       KeyName: 
