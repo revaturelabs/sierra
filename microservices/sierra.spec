@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['sierra.py'],
-             pathex=['/home/tyro/projects/github/revaturelabs/sierra/microservices'],
+             pathex=[],
              binaries=[],
              datas=[('templates/*', 'templates')],
              hiddenimports=['troposphere'],
