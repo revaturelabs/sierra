@@ -51,6 +51,13 @@ Resources:
                 Effect: Allow
                 Action:
                   - s3:*
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - ecr:GetAuthorizationToken
              
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -106,6 +113,19 @@ Resources:
         Type: LINUX_CONTAINER
       Name: !Ref AWS::StackName
       ServiceRole: !Ref CodeBuildServiceRole
+  
+  CodePipelineWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      AuthenticationConfiguration:
+        - SecretToken: !Ref GitHubToken 
+      Filters: 
+        - WebhookFilterRule
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref Pipeline 
+      TargetAction: Source
+      Name: githubWebhook
+
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -115,10 +135,9 @@ Resources:
         Type: S3
         Location: !Ref ArtifactBucket
       Stages:
-      
         - Name: Source
           Actions:
-            - Name: Microservice
+            - Name: Source
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
@@ -160,7 +179,7 @@ Resources:
               Configuration:
                 ClusterName: !Ref Cluster
                 ServiceName: !Ref Service
-                FileName: images.json
+                FileName: image.json
               InputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
