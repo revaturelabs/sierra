@@ -104,17 +104,20 @@ Resources:
       Name: !Ref AWS::StackName
       ServiceRole: !Ref CodeBuildServiceRole
   
-  #CodePipelineWebhook:
-  #  Type: AWS::CodePipeline::Webhook
-  #  Properties:
-  #    Name: githubWebhook
-  #    AuthenticationConfiguration:
-  #      SecretToken: secret
-  #    Authentication: GITHUB_HMAC
-  #    TargetPipeline: !Ref Pipeline 
-  #    TargetAction: Source
-  #    TargetPipelineVersion: 1
-  #    RegisterWithThirdParty: true
+  CodePipelineWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      Name: githubWebhook
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubToken
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: !Sub refs/heads/${GitHubBranch}
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref Pipeline 
+      TargetAction: Source
+      TargetPipelineVersion: 1
+      RegisterWithThirdParty: true
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
