@@ -10,6 +10,7 @@ Metadata:
           - DBInstanceName
           - DBInstanceType
           - DBStorageType
+          - DBStorageSize
           - DBMultiAZ
           - DBSecurityGroup
       - Label: 
@@ -95,11 +96,12 @@ Parameters:
       - gp2
       - io1
       - standard
-  # DBStorageSize:
-    # Type: Number
-    # Description: Enter a storage size for database
-    # MinValue: 
-    # MaxValue:
+  DBStorageSize:
+    Type: Number
+    Description: Enter a storage size for database. 20 minimum for gp2, 10 for io1 and standard.
+    Default: 10
+    MinValue: 10
+    MaxValue: 16384
 Resources:
   # Create the Oracle RDS
   SecurityGroupSierraRDS:
@@ -116,8 +118,8 @@ Resources:
   SierraRDS:
     Type: AWS::RDS::DBInstance
     Properties:
-      AllocatedStorage: '10'
-        # Ref: DBStorageSize
+      AllocatedStorage:
+        Ref: DBStorageSize
       DBInstanceClass:
         Ref: DBInstanceType
       Engine: oracle-ee
