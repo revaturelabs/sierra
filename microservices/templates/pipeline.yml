@@ -1,32 +1,20 @@
 AWSTemplateFormatVersion: 2010-09-09
-
-
 Parameters:
   GitHubRepo:
     Type: String
-
   GitHubBranch:
     Type: String
-
   GitHubToken:
     Type: String
     NoEcho: true
-
   GitHubUser:
     Type: String
-
   Cluster:
     Type: String
-
   Service:
     Type: String
 
-
 Resources:
-  Repository:
-    Type: AWS::ECR::Repository
-    DeletionPolicy: Retain
-
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -50,7 +38,9 @@ Resources:
               - Resource: "*"
                 Effect: Allow
                 Action:
-                  - s3:*
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
               - Resource: "*"
                 Effect: Allow
                 Action:
@@ -114,18 +104,17 @@ Resources:
       Name: !Ref AWS::StackName
       ServiceRole: !Ref CodeBuildServiceRole
   
-  CodePipelineWebhook:
-    Type: AWS::CodePipeline::Webhook
-    Properties:
-      AuthenticationConfiguration:
-        - SecretToken: !Ref GitHubToken 
-      Filters: 
-        - WebhookFilterRule
-      Authentication: GITHUB_HMAC
-      TargetPipeline: !Ref Pipeline 
-      TargetAction: Source
-      Name: githubWebhook
-
+  #CodePipelineWebhook:
+  #  Type: AWS::CodePipeline::Webhook
+  #  Properties:
+  #    Name: githubWebhook
+  #    AuthenticationConfiguration:
+  #      SecretToken: secret
+  #    Authentication: GITHUB_HMAC
+  #    TargetPipeline: !Ref Pipeline 
+  #    TargetAction: Source
+  #    TargetPipelineVersion: 1
+  #    RegisterWithThirdParty: true
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -151,7 +140,6 @@ Resources:
               OutputArtifacts:
                 - Name: Microservice
               RunOrder: 1
-
         - Name: Build
           Actions:
             - Name: Build
@@ -162,8 +150,11 @@ Resources:
                 Provider: CodeBuild
               Configuration:
                 ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: Microservice
+              OutputArtifacts:
+                - Name: buildOut
               RunOrder: 1
-
         - Name: Deploy
           Actions:
             - Name: Deploy
@@ -176,6 +167,8 @@ Resources:
                 ClusterName: !Ref Cluster
                 ServiceName: !Ref Service
                 FileName: image.json
+              InputArtifacts:
+                - Name: buildOut
               RunOrder: 1
 
 
