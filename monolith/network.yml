@@ -1,0 +1,291 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
+  WebInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for web server
+    AllowedValues:
+      - t2.micro
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - c4.large
+  WebMinSize:
+    Type: Number
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: Number
+    Description: Maximum number of instances in auto scaling group
+    
+
+Mappings:
+  RegionToImageId:
+    us-east-1:
+      ImageId: ami-b70554c8
+    us-east-2:
+      ImageId: ami-8c122be9
+    us-west-1:
+      ImageId: ami-e0ba5c83
+    us-west-2:
+      ImageId: ami-ami-a9d09ed1
+    ca-central-1:
+      ImageId: ami-0ee86a6a
+    ap-south-1:
+      ImageId: ami-d783a9b8
+    ap-northeast-1: 
+      ImageId: ami-e99f4896
+    ap-northeast-2:
+      ImageId: ami-afd86dc1
+    ap-southeast-1:
+      ImageId: ami-05868579
+    ap-southeast-2:
+      ImageId: ami-39f8215b
+    eu-central-1:
+      ImageId: ami-7c4f7097
+    eu-west-1:
+      ImageId: ami-466768ac
+    eu-west-2:
+      ImageId: ami-b8b45ddf
+    eu-west-3:
+      ImageId: ami-2cf54551
+    sa-east-1:
+      ImageId: ami-6dca9001
+
+
+Resources:
+  #VPC Set up
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+  PublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: 'us-east-1a'
+  PrivateSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: 'us-east-1a'
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties: {}
+
+  #Routes
+  PublicSubnetRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Subnet Route Table.
+  PrivateSubnetRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Subnet Route Table.
+  RouteToInternetGateway:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      GatewayId: !Ref InternetGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  RouteToNatInstance:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      InstanceId: !Ref NatInstance
+      DestinationCidrBlock: 0.0.0.0/0
+
+  #Routing associations
+  PublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet
+  PrivateSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet
+  InternetGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  #Instance Configurations
+  Bastion:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: rhel-cloud-admin
+      InstanceType: t2.micro
+      ImageId: ami-b70554c8
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Bastion
+
+  NatInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-01623d7b
+      SourceDestCheck: false #needs to be false for NAT instance to work.
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: NatInstance
+
+  Server1: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-b70554c8
+      KeyName: rhel-cloud-admin
+      InstanceType: t2.micro
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: false
+          DeleteOnTermination: true
+          SubnetId: !Ref PrivateSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      UserData: 
+      #Everything after pipe | has \n after it
+        Fn::Base64: |
+          #!/bin/bash
+          yum -y update
+          yum -y install httpd
+          echo Server1 >> /var/www/html/index.html
+          service httpd start
+      Tags:
+        - Key: Name
+          Value: Server1
+
+
+
+  #Load balancer properties
+  Elb:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Type: network
+      Name: 'load-balancer'
+      Scheme: internet-facing
+      Subnets: 
+        - !Ref PublicSubnet
+      Tags:
+        - Key: Name
+          Value: 'this-loadbalancer'
+
+  ElbListener:
+    Type : AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ElbTargetGroup
+      LoadBalancerArn: !Ref Elb
+      Port: 80
+      Protocol: TCP
+
+  ElbTargetGroup:
+    # Condition: UseALBCond
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      # HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Name: 'targetsForELB'
+      Port: 80
+      Protocol: TCP
+      Tags:
+        - Key: Name
+          Value: alb-tg        
+      VpcId: !Ref VPC
+
+
+  #Autoscaling configuration
+  EC2AutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        AvailabilityZones: 
+          - 'us-east-1a'
+        #LaunchConfigurationName: !Ref Ec2Instance
+        InstanceId: !Ref Server1
+        MinSize: 0
+        MaxSize: 1
+        DesiredCapacity: 1
+        HealthCheckGracePeriod: 300
+        TargetGroupARNs:
+          - !Ref ElbTargetGroup
+        Tags:
+          - Key: Name
+            Value: 'auto-scaling-group'
+            PropagateAtLaunch: true
+
+  ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: EC2AutoScalingGroup
+      Cooldown: '1'
+      ScalingAdjustment: '1'
+
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '60'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance
+        is down
+      Period: '60'
+      AlarmActions:
+      - Ref: ScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: EC2AutoScalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+
+
+  #Security Group
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC

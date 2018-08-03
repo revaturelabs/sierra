@@ -1,0 +1,116 @@
+Description: Master Monolith Template
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  TemplatePath:
+    Type: String
+    Description: S3Bucket where the templates are stored
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
+  DBUsername:
+    Type: String
+    Description: Enter a valid Database username
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"    
+    #     Minimum password policy enforced by AWS:
+    # MySQL: Must contain from 8 to 41 alphanumeric characters.
+    # Oracle: Must contain from 8 to 30 alphanumeric characters.
+    # SQL Server: Must contain from 8 to 128 alphanumeric characters.
+  DBPassword:
+    Type: String
+    Description: Enter a valid Database password
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 30
+    AllowedPattern: "[a-zA-Z0-9]*"
+  DBInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for database
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+  WebInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for web server
+    AllowedValues:
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - c4.large
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group
+  # Environment:
+  #   Type: String
+  #   Description: Select the appropriate environment
+  #   AllowedValues:
+  #     - dev
+  #     - prod
+
+Resources:
+#Database Stack
+  DatabaseStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/database.yml"
+      Parameters:
+        DBUsername:
+          Ref: DBUsername
+        DBPassword:
+          Ref: DBPassword
+        DBInstanceType:
+          Ref: DBInstanceType
+        # Environment:
+        #   Ref: Environment
+      Tags:
+        - Key: Name
+          Value: DatabaseStack
+#Server Stack
+  # ServerStack:
+  #   Type: "AWS::CloudFormation::Stack"
+  #   Properties:
+  #     TemplateURL:
+  #       Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/server.yml"
+  #     Parameters: {}
+  #     Tags:
+  #       - Key: Name
+  #         Value: ServerStack
+#Network stack          
+  NetworkStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/network.yml"
+      Parameters:
+        KeyPair:
+          Ref: KeyPair
+        WebInstanceType:
+          Ref: WebInstanceType
+        WebMinSize:
+          Ref: WebMinSize
+        WebMaxSize:
+          Ref: WebMaxSize
+      Tags:
+        - Key: Name
+          Value: NetworkStack
+#Jenkins Stack
+  JenkinsStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith.yml"
+      Parameters:
+        KeyName:
+          Ref: KeyPair
+      Tags:
+        - Key: Name
+          Value: JenkinsStack
