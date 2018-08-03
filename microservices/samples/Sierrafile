@@ -1,8 +1,12 @@
 {
+  "environment": {
+    "CALIBER_CONFIG_GIT_URI": "https://gitlab.com/revalution/caliber-configuration.git",
+    "CALIBER_CONFIG_GIT_USERNAME": null,
+    "CALIBER_CONFIG_GIT_PASSWORD": null
+  },
   "default": {
     "git": {
       "github-user": "goeppes",
-      "github-token": "blah",
       "github-branch": "master"
     }
   },
@@ -15,7 +19,12 @@
       },
       "git": {
         "github-repo": "revaturelabs/caliber-config"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_GIT_URI",
+        "CALIBER_CONFIG_GIT_USERNAME",
+        "CALIBER_CONFIG_GIT_PASSWORD"
+      ]
     },
     {
       "name": "CaliberEureka",
@@ -25,7 +34,10 @@
       },
       "git": {
         "github-repo": "revaturelabs/caliber-eureka"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_SERVER_URL"
+      ]
     },
     {
       "name": "CaliberZuul",
@@ -35,7 +47,11 @@
       },
       "git": {
         "github-repo": "revaturelabs/caliber-zuul"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_SERVER_URL",
+        "CALIBER_EUREKA_SERVER_URL"
+      ]
     },
     {
       "name": "CaliberTrainingService",
@@ -45,7 +61,11 @@
       },
       "git": {
         "github-repo": "revaturelabs/caliber-training-service"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_SERVER_URL",
+        "CALIBER_EUREKA_SERVER_URL"
+      ]
     },
     {
       "name": "CaliberDocumentService",
@@ -55,7 +75,11 @@
       },
       "git": {
         "github-repo": "revaturelabs/caliber-document-service"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_SERVER_URL",
+        "CALIBER_EUREKA_SERVER_URL"
+      ]
     }
   ]
 }
