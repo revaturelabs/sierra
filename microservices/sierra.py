@@ -44,29 +44,30 @@ def parse_services(parser, filename):
     return config['services']
 
 
+def parameter_groups(groups):
+    return [
+        {'Label': {'default': name}, 'Parameters': params}
+        for name, params in groups.items()
+    ]
+
+
 def build_template(services):
     template = Template()
 
     template.add_metadata({
         'AWS::CloudFormation::Interface': {
-            'ParameterGroups': [
-                {
-                    'Label': {'default': 'Network Configuration'},
-                    'Parameters': [
-                        'VpcCidr',
-                        'Subnet1Cidr',
-                        'Subnet2Cidr',
-                    ],
-                },
-                {
-                    'Label': {'default': 'ECS Configuration'},
-                    'Parameters': [
-                        'InstanceType',
-                        'ClusterSize',
-                        'KeyName',
-                    ],
-                },
-            ],
+            'ParameterGroups': parameter_groups({
+                'Network Configuration': [
+                    'VpcCidr',
+                    'Subnet1Cidr',
+                    'Subnet2Cidr',
+                ],
+                'ECS Configuration': [
+                    'InstanceType',
+                    'ClusterSize',
+                    'KeyName',
+                ],
+            }),
         }
     })
 
@@ -79,7 +80,7 @@ def build_template(services):
     instance_type = template.add_parameter(Parameter(
         'InstanceType',
         Type='String',
-        Default='t2.micro'
+        Default='t2.small'
     ))
 
     key_name = template.add_parameter(Parameter(
