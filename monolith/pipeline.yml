@@ -136,6 +136,22 @@ Resources:
                 Resource:
                   - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/Sierra
                   - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/Sierra:*
+              -
+                Effect: "Allow"
+                Action:
+                  - "elasticbeanstalk:*"
+                  - "codedeploy:*"
+                  - "ec2:*"
+                  - "elasticloadbalancing:*"
+                  - "autoscaling:*"
+                  - "cloudwatch:*"
+                  - "s3:*"
+                  - "sns:*"
+                  - "cloudformation:*"
+                  - "rds:*"
+                  - "sqs:*"
+                  - "ecs:*"
+                Resource: "*"               
   SierraBuild:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -199,3 +215,112 @@ Resources:
               ProjectName: 
                 Ref: SierraBuild
             RunOrder: 1
+        - Name: Deploy
+          Actions:
+          - Name: Deploy
+            ActionTypeId:
+              Category: Deploy 
+              Owner: AWS 
+              Version: 1 
+              Provider: ElasticBeanstalk
+            InputArtifacts:
+            - Name: BuildOut
+            Configuration:
+              ApplicationName: !Ref Application
+              EnvironmentName: !Ref TomcatEnvironment
+  # DeploymentApplication:
+  #   Type: AWS::CodeDeploy::Application
+  #   Properties:
+  #     ApplicationName: Sierra    
+  #     ComputePlatform: Server
+  # DeploymentGroup: 
+  #   Type: AWS::CodeDeploy::DeploymentGroup
+  #   Properties: 
+  #     ApplicationName: 
+  #       Ref: DeploymentApplication
+  #     Ec2TagFilters:
+  #       - Key: DeploymentGroup
+  #         Type: KEY_AND_VALUE
+  #         Value: !Ref AWS::StackName
+  #     ServiceRoleArn: 
+  #       Fn::GetAtt: [ CodeDeployRole, Arn ]
+  # CodeDeployRole:
+  #   Type: AWS::IAM::Role
+  #   Properties: 
+  #       Path: /
+  #       RoleName: !Sub ${DeploymentApplication}-CodeDeploy-${AWS::Region}
+  #       AssumeRolePolicyDocument: |
+  #           {
+  #               "Statement": [{
+  #                   "Action": "sts:AssumeRole",
+  #                   "Effect": "Allow",
+  #                   "Principal": { 
+  #                       "Service": "codedeploy.amazonaws.com" 
+  #                   }
+  #               }]
+  #           }
+  #       Policies: 
+  #           - PolicyName: !Sub ${AWS::StackName}-${AWS::Region}
+  #             PolicyDocument: !Sub |
+  #               {
+  #                   "Version": "2012-10-17",
+  #                   "Statement": [
+  #                       {
+  #                       "Effect": "Allow",
+  #                       "Action": [
+  #                           "autoscaling:*",
+  #                           "ec2:*",
+  #                           "tag:GetTags",
+  #                           "tag:GetResources",
+  #                           "sns:Publish",
+  #                           "cloudwatch:DescribeAlarms"
+  #                       ],
+  #                       "Resource": "*"
+  #                       }
+  #                   ]
+  #               }
+  Application:
+   Type: AWS::ElasticBeanstalk::Application
+   Properties:
+     Description: AWS Elastic Beanstalk Sample Application
+
+  ApplicationVersion:
+   Type: AWS::ElasticBeanstalk::ApplicationVersion
+   Properties:
+     ApplicationName:
+       Ref: Application
+     Description: AWS ElasticBeanstalk Sample Application Version
+     SourceBundle:
+       S3Bucket: !Ref ArtifactStoreS3Location
+       S3Key: caliber.war
+  AppConfigurationTemplate:
+   Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+   Properties:
+     ApplicationName:
+       Ref: Application
+     Description: AWS ElasticBeanstalk Sample Configuration Template
+     OptionSettings:
+     - Namespace: aws:autoscaling:asg
+       OptionName: MinSize
+       Value: '2'
+     - Namespace: aws:autoscaling:asg
+       OptionName: MaxSize
+       Value: '6'
+     - Namespace: aws:elasticbeanstalk:environment
+       OptionName: EnvironmentType
+       Value: LoadBalanced
+    #  - Namespace: aws:autoscaling:launchconfiguration
+    #    OptionName: EC2KeyName
+    #    Value: Keyname
+     SolutionStackName: 64bit Amazon Linux 2018.03 v3.0.1 running Tomcat 8 Java 8
+     
+  TomcatEnvironment:
+   Type: AWS::ElasticBeanstalk::Environment
+   Properties:
+     ApplicationName:
+       Ref: Application
+     Description: AWS ElasticBeanstalk Sample Environment
+     TemplateName:
+       Ref: AppConfigurationTemplate
+     VersionLabel:
+       Ref: ApplicationVersion
