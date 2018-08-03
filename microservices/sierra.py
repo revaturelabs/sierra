@@ -2,6 +2,8 @@
 
 """Generate a CloudFormation template for microservices.
 
+By default it uses the Sierrafile in the current working directory.
+
 """
 
 import argparse
@@ -16,13 +18,7 @@ from troposphere.cloudformation import Stack
 S3_DOMAIN = 's3.amazonaws.com'
 
 
-def meta_git_repo(url):
-    """Creates a list of services from a meta git repository."""
-    print('Currently unsupported')
-    sys.exit(0)
-
-
-def services_file(path):
+def parse_services(parser, filename):
     """Creates a list of services from a configuration file."""
 
     def update(old, new):
@@ -31,10 +27,13 @@ def services_file(path):
                 old[k] = update(old.get(k, {}), v)
             else:
                 old.setdefault(k, v)
-        return old
 
-    with open(path) as f:
-        config = json.load(f)
+    try:
+        with open(filename) as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        parser.print_help()
+        parser.exit()
 
     default = config['default']
     del config['default']
@@ -180,30 +179,16 @@ def build_template(services):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('location', type=str)
-    parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
-
-    group = parser.add_mutually_exclusive_group(required=True)
-
-    group.add_argument(
-        '--meta-git-repo',
-        action='store_const', const=meta_git_repo, dest='func',
-        help='indicates location is a url of a meta git repo',
-    )
-
-    group.add_argument(
-        '--services-file',
-        action='store_const', const=services_file, dest='func',
-        help='indicates location is a path of a sierra config file',
-    )
-
-    if not sys.argv[1:]:
-        parser.print_help()
-        parser.exit()
+    parser.add_argument('-f', '--file', type=str,
+                        default='Sierrafile')
+    parser.add_argument('-o', '--out', type=argparse.FileType('w'),
+                        default=sys.stdout)
+    parser.add_argument('--format', choices=['yaml', 'json'],
+                        default='yaml')
 
     args = parser.parse_args()
 
-    services = args.func(args.location)
+    services = parse_services(parser, args.file)
     template = build_template(services)
 
     if args.format == 'json':
@@ -211,7 +196,7 @@ def main():
     else:
         result = template.to_yaml()
 
-    print(result)
+    print(result, file=args.out)
 
 
 if __name__ == '__main__':
