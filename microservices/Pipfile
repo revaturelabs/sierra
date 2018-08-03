@@ -5,10 +5,11 @@ name = "pypi"
 
 [packages]
 troposphere = "*"
-"boto3" = "*"
 
 [dev-packages]
 pytest = "*"
+pyinstaller = "*"
+"boto3" = "*"
 
 [requires]
 python_version = "3.6"
