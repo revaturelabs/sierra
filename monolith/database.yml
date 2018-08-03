@@ -120,3 +120,18 @@ Resources:
 #    SierraRDSEndpoint:
 #      Description: Database endpoint
 #      Value: !Sub "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
+
+
+  #  .bash_profile
+  #       ORACLE_HOME=/usr/lib/oracle/11.2/client64
+  #       PATH=$ORACLE_HOME/bin:$PATH
+  #       LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  #       export ORACLE_HOME
+  #       export LD_LIBRARY_PATH
+  #       export PATH
+  #  aws s3 cp s3://c-erra/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm .
+  #  aws s3 cp s3://c-erra/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm .
+  #  sudo rpm -ivh oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
+  #  sudo rpm -ivh oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
+  #  source .bash_profile
+# sqlplus 'admin/password@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db-interact1.ciuxmcghhcw8.us-east-1.rds.amazonaws.com) (PORT=1521))(CONNECT_DATA=(SID=ORCL)))'
