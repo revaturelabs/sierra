@@ -9,6 +9,9 @@ Metadata:
         Parameters: 
           - DBInstanceName
           - DBInstanceType
+          - DBStorageType
+          - DBMultiAZ
+          - DBSecurityGroup
       - Label: 
           default: "Use an existing database"
         Parameters: 
@@ -25,15 +28,17 @@ Parameters:
     # Must follow constraints, can't be blank
   DBInstanceName:
     Type: String
-    Description: New database instance name. Case insensitive, but stored as all lower-case (1-63 alphanumeric, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
+    Description: New database instance name. Case insensitive, but stored as all lower-case. (1-63 alphanumeric, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
     MinLength: 1
     MaxLength: 63
+    Default: SierraRDS
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
   DBUsername:
     Type: String
-    Description: Enter a valid Database username (1-30 alphanumeric)
+    Description: Enter a valid Database username. (1-30 alphanumeric)
     MinLength: 1
     MaxLength: 30
+    Default: admin
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
   #===============================================
   #     Minimum password enforced by AWS:
@@ -57,6 +62,17 @@ Parameters:
       - db.t2.small
       - db.t2.medium
       - db.t2.large
+  DBSecurityGroup:
+    Type: String
+    Description: Name for a new database security group.
+    Default: SierraSG
+    AllowedPattern: "[a-zA-Z0-9]*"
+  DBMultiAZ: 
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
   #===============================================
   #     Storage size ranges enforced by AWS:
   # MySQL, MariaDB, PostgreSQL:
@@ -72,13 +88,14 @@ Parameters:
   #   io1: 100 to 16384
   #   standard: 20 to 1024
   #===============================================
-  # DBStorageType:
-    # Type: String
-    # Description: Enter one of the possible instance storage type for database
-    # AllowedValues:
-      # - General Purpose (SSD) storage (gp2)
-      # - Provisioned IOPS storage (io1)
-      # - Magnetic storage (standard)
+  DBStorageType:
+    Type: String
+    Description: Enter one of the possible instance storage type for database
+    Default: standard
+    AllowedValues:
+      - General Purpose (SSD) storage (gp2)
+      - Provisioned IOPS storage (io1)
+      - Magnetic storage (standard)
   # DBStorageSize:
     # Type: Number
     # Description: Enter a storage size for database
@@ -89,7 +106,8 @@ Resources:
   SecurityGroupSierraRDS:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: SecurityGroupSierraRDS
+      GroupName: 
+        Ref: DBSecurityGroup
       GroupDescription: Security group for Sierra RDS backend
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -97,7 +115,6 @@ Resources:
           ToPort: 1521
           CidrIp: 0.0.0.0/0
   SierraRDS:
-    Condition: CreatingNewDB
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '10'
@@ -111,12 +128,56 @@ Resources:
         Ref: DBPassword
       VPCSecurityGroups:
       - !GetAtt SecurityGroupSierraRDS.GroupId
-      StorageType: standard
-        # Ref: DBStorageType
+      StorageType:
+        Ref: DBStorageType
       DBInstanceIdentifier:
         Ref: DBInstanceName
-      # DeletionPolicy: Retain
+      MultiAZ: 
+        Ref: DBMultiAZ
       
+
+# Outputs:
+#    SierraRDSEndpoint:
+#      Description: Database endpoint
+#      Value: !Sub "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
+
+#######################################################################################################
+# #!/bin/bash
+# yum update -y
+
+# echo '# .bash_profile' > /home/ec2-user/.bash_profile
+# echo '' >> /home/ec2-user/.bash_profile
+# echo '# Get the aliases and functions' >> /home/ec2-user/.bash_profile
+# echo 'if [ -f ~/.bashrc ]; then' >> /home/ec2-user/.bash_profile
+# echo '        . ~/.bashrc' >> /home/ec2-user/.bash_profile
+# echo 'fi' >> /home/ec2-user/.bash_profile
+# echo '' >> /home/ec2-user/.bash_profile
+# echo '# User specific environment and startup programs' >> /home/ec2-user/.bash_profile
+# echo '' >> /home/ec2-user/.bash_profile
+# echo 'PATH=$PATH:$HOME/.local/bin:$HOME/bin:$ORACLE_HOME/bin' >> /home/ec2-user/.bash_profile
+# echo 'ORACLE_HOME=/usr/lib/oracle/12.1/client64' >> /home/ec2-user/.bash_profile
+# echo 'LD_LIBRARY_PATH=$ORACLE_HOME/lib' >> /home/ec2-user/.bash_profile
+# echo 'export PATH' >> /home/ec2-user/.bash_profile
+# echo 'export ORACLE_HOME' >> /home/ec2-user/.bash_profile
+# echo 'export LD_LIBRARY_PATH' >> /home/ec2-user/.bash_profile
+
+# aws s3 cp s3://c-erra/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
+# aws s3 cp s3://c-erra/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
+# rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
+# rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
+# aws s3 cp s3://c-erra/db_init/schema-generator.sql /home/ec2-user/
+# source /home/ec2-user/.bash_profile
+
+# source /home/ec2-user/.bash_profile
+  #  sqlplus 'admin/password@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db-interact1.ciuxmcghhcw8.us-east-1.rds.amazonaws.com) (PORT=1521))(CONNECT_DATA=(SID=ORCL)))'
+
+  # NECESSARY DATA TO PASS into sqlplus command:
+  #   username
+  #   password
+  #   endpoint
+  #   port?
+  #   sid?
+########################################################################################################
 Conditions:
   # Create new database if there is no existing database
   CreatingNewDB: !Equals [!Ref ExistingDBInstanceName, ""]

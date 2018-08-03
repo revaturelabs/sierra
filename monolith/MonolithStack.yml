@@ -38,9 +38,15 @@ Parameters:
     Type: String
     Description: Enter one of the possible instance type for web server
     AllowedValues:
+<<<<<<< HEAD
       - t2.micro
       - t2.large
       - m4.large
+=======
+      - t2.large
+      - m4.large
+      - m4.xlarge
+>>>>>>> 4e3dae7643d1895345b2dd9f94e3c37b891aed72
       - c4.large
   WebMinSize:
     Type: String
@@ -107,7 +113,11 @@ Resources:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
+<<<<<<< HEAD
         Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith-manual.yml"
+=======
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith.yml"
+>>>>>>> 4e3dae7643d1895345b2dd9f94e3c37b891aed72
       Parameters:
         KeyName:
           Ref: KeyPair

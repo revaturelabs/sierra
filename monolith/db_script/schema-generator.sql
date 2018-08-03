@@ -1,4 +1,14 @@
 --------------------------------------------------------
+--  DCL for User CALIBER -- 
+--------------------------------------------------------
+DROP USER CALIBER CASCADE;
+
+CREATE USER CALIBER IDENTIFIED BY p4ssw0rd;
+
+GRANT DBA TO CALIBER WITH ADMIN OPTION;
+
+ALTER SESSION SET CURRENT_SCHEMA = CALIBER;
+--------------------------------------------------------
 --  DDL for Table CALIBER_TRAINER
 --------------------------------------------------------
   CREATE TABLE "CALIBER"."CALIBER_TRAINER"
@@ -477,6 +487,8 @@ ALTER TABLE "CALIBER"."CALIBER_TRAINEE" ADD REVPRO_PROJECT_COMPLETION NUMBER(10)
 --------------------------------------------------------
 --  DDL for Table CALIBER_TASK
 --------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
+
   CREATE TABLE "CALIBER"."CALIBER_TASK"
    (	"TASK_ID" NUMBER(10,0),
 	"IS_ACTIVE" NUMBER(1,0),
@@ -547,6 +559,9 @@ ALTER TABLE "CALIBER"."CALIBER_TRAINEE" ADD REVPRO_PROJECT_COMPLETION NUMBER(10)
 	  REFERENCES "CALIBER"."CALIBER_TRAINER" ("TRAINER_ID") ENABLE;
   ALTER TABLE "CALIBER"."CALIBER_TASK_COMPLETION" ADD CONSTRAINT "FK_QQRRVSYR2UDC3M2T5NJI03TQH" FOREIGN KEY ("TASK_ID")
 	  REFERENCES "CALIBER"."CALIBER_TASK" ("TASK_ID") ENABLE;
+
+************************************************************************************************/	  
+	  
 --------------------------------------------------------
 --  DDL for Sequence ASSESSMENT_ID_SEQUENCE
 --------------------------------------------------------
@@ -586,11 +601,11 @@ ALTER TABLE "CALIBER"."CALIBER_TRAINEE" ADD REVPRO_PROJECT_COMPLETION NUMBER(10)
    --------------------------------------------------------
 --  DDL for Sequence TASK_COMPLETION_ID_SEQUENCE
 --------------------------------------------------------
-   CREATE SEQUENCE  "CALIBER"."TASK_COMPLETION_ID_SEQUENCE"  MINVALUE 1 MAXVALUE 9999999999999999999999999999 INCREMENT BY 1 START WITH 1 CACHE 20 NOORDER  NOCYCLE ;
+--   CREATE SEQUENCE  "CALIBER"."TASK_COMPLETION_ID_SEQUENCE"  MINVALUE 1 MAXVALUE 9999999999999999999999999999 INCREMENT BY 1 START WITH 1 CACHE 20 NOORDER  NOCYCLE ;
 --------------------------------------------------------
 --  DDL for Sequence TASK_ID_SEQUENCE
 --------------------------------------------------------
-   CREATE SEQUENCE  "CALIBER"."TASK_ID_SEQUENCE"  MINVALUE 1 MAXVALUE 9999999999999999999999999999 INCREMENT BY 1 START WITH 1 CACHE 20 NOORDER  NOCYCLE ;
+--   CREATE SEQUENCE  "CALIBER"."TASK_ID_SEQUENCE"  MINVALUE 1 MAXVALUE 9999999999999999999999999999 INCREMENT BY 1 START WITH 1 CACHE 20 NOORDER  NOCYCLE ;
 -------------TRAINER-------------
 INSERT INTO CALIBER_TRAINER(TRAINER_ID, EMAIL, NAME, TITLE, TIER)
   VALUES( TRAINER_ID_SEQUENCE.NEXTVAL, 'patrick.walsh@revature.com', 'Patrick Walsh', 'Lead Trainer', 'ROLE_VP');
@@ -598,7 +613,7 @@ INSERT INTO CALIBER_TRAINER(TRAINER_ID, EMAIL, NAME, TITLE, TIER)
   VALUES( TRAINER_ID_SEQUENCE.NEXTVAL, 'pjw6193@hotmail.com', 'Dan Pickles', 'Lead Trainer', 'ROLE_VP');
 INSERT INTO CALIBER_TRAINER(TRAINER_ID, EMAIL, NAME, TITLE, TIER)
   VALUES( TRAINER_ID_SEQUENCE.NEXTVAL, 'ravi.singh@revature.com', 'Ravi Singh', 'Vice President of Technology', 'ROLE_VP');
-INSERT INTO CALIBER_TRAINER(TRAINER_ID, EMAIL, NAME, TITLE, TIER)
+INSERT INTO CALIBER.CALIBER_TRAINER(TRAINER_ID, EMAIL, NAME, TITLE, TIER)
   VALUES( TRAINER_ID_SEQUENCE.NEXTVAL, 'karan.dhirar@revature.com', 'Karan Dhirar', 'Technology Manager', 'ROLE_VP');
 INSERT INTO CALIBER_TRAINER(TRAINER_ID, EMAIL, NAME, TITLE, TIER)
   VALUES( TRAINER_ID_SEQUENCE.NEXTVAL, 'brian.connolly@revature.com', 'Brian Connolly', 'Senior Java Developer', 'ROLE_VP');
@@ -3325,7 +3340,7 @@ VALUES(564, 'Better use of technical terms',6,'Pass',73,8);
 INSERT INTO CALIBER_PANEL_FEEDBACK (PANEL_FEEDBACK_ID, PANELIST_COMMENTS, PANEL_RESULT, PANEL_STATUS, PANEL_ID, CATEGORY_ID)
 VALUES(565, 'Better use of technical terms',5,'Pass',73,9);
 COMMIT;
-
+/
 alter table caliber_trainer
 add trainer_password varchar2(800);
 /
