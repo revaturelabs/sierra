@@ -25,7 +25,6 @@ Parameters:
   ExistingDBInstanceName:
     Type: String
     Description: Existing database instance name. Overrides new database settings if not blank.
-    # Must follow constraints, can't be blank
   DBInstanceName:
     Type: String
     Description: New database instance name. Case insensitive, but stored as all lower-case. (1-63 alphanumeric, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
@@ -90,12 +89,12 @@ Parameters:
   #===============================================
   DBStorageType:
     Type: String
-    Description: Enter one of the possible instance storage type for database
+    Description: Enter one of the possible instance storage type for database; General Purpose (SSD) storage (gp2), Provisioned IOPS storage (io1), Magnetic storage (standard)
     Default: standard
     AllowedValues:
-      - General Purpose (SSD) storage (gp2)
-      - Provisioned IOPS storage (io1)
-      - Magnetic storage (standard)
+      - gp2
+      - io1
+      - standard
   # DBStorageSize:
     # Type: Number
     # Description: Enter a storage size for database
