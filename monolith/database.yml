@@ -39,6 +39,18 @@ Parameters:
     Type: String
     Description: Name for the database security group.
     AllowedPattern: "[a-zA-Z0-9]*"
+  StorageType:
+    Type: String
+    Description: Storage type for DB instance.
+    AllowedValues:
+      - gp2
+      - io1
+      - standard
+  # DBMultiAZ: 
+  #   Type: String
+  #   AllowedValues:
+  #     - true
+  #     - false
   #===============================================
   #     Storage size ranges enforced by AWS:
   # MySQL, MariaDB, PostgreSQL:
@@ -93,16 +105,18 @@ Resources:
         Ref: DBPassword
       VPCSecurityGroups:
       - !GetAtt SecurityGroupSierraRDS.GroupId
-      StorageType: standard
-        # Ref: DBStorageType
+      StorageType:
+        Ref: StorageType
       DBInstanceIdentifier:
         Ref: DBInstanceName
       Tags:
         - Key: Name
           Value: SierraRDS
+      # MultiAZ: 
+      #   Ref: DBMultiAZ
       
   # Lambda function to initialize RDS with SQL scripts
-Outputs:
-   SierraRDSEndpoint:
-     Description: Database endpoint
-     Value: !Sub "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
+# Outputs:
+#    SierraRDSEndpoint:
+#      Description: Database endpoint
+#      Value: !Sub "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
