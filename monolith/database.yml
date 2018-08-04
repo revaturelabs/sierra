@@ -103,6 +103,38 @@ Parameters:
     MinValue: 10
     MaxValue: 16384
 Resources:
+  ReadS3BucketsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: ReadS3BucketsRole
+  ReadS3BucketsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ReadS3BucketsPolicy
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:Read*
+          Resource: "*"
+      Roles:
+      - Ref: ReadS3BucketsRole
+  ReadS3BucketsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+
   # Create the Oracle RDS
   SecurityGroupSierraRDS:
     Type: AWS::EC2::SecurityGroup
@@ -175,22 +207,23 @@ Resources:
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
             . /home/ec2-user/.bash_profile
-            echo ${Endpoint} ${Username} ${Password} ${Port} ${Provider}> /home/ec2-user/debugme
+            echo ${Endpoint} ${Username} ${Password} ${Port} ${Provider} > /home/ec2-user/debugme
             echo "start /home/ec2-user/schema-generator.sql;" | /usr/lib/oracle/12.1/client64/bin/sqlplus ${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Provider})))
             echo "We did it!" >> /home/ec2-user/helpme
             # shutdown -h now
           - {
-            Endpoint: !GetAtt SierraRDS.Endpoint.Address
-            Username: !Ref DBUsername
-            Password: !Ref DBPassword
-            Port: 1521
+            Endpoint: !GetAtt SierraRDS.Endpoint.Address,
+            Username: !Ref DBUsername,
+            Password: !Ref DBPassword,
+            Port: '1521',
             Provider: ORCL
             }
-          
-            
+                      
   OracleClientSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
+      IamInstanceProfile:
+        Ref: ReadS3BucketsInstanceProfile
       GroupDescription: SSH and Oracle ports
       SecurityGroupIngress:
         - IpProtocol: tcp
