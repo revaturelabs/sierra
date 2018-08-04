@@ -6,7 +6,7 @@ else
 	TARGET=dist/sierra
 endif
 
-all: lint test $(TARGET)
+all: setup lint test compile
 
 clean:
 	$(RM) .pytest_cache
@@ -15,7 +15,6 @@ clean:
 	$(RM) dist
 
 setup:
-	pip3 install --user pipenv
 	pipenv install --dev
 
 lint:
@@ -24,5 +23,7 @@ lint:
 test:
 	pipenv run pytest
 
-$(TARGET): sierra.py
+compile: $(TARGET)
+
+$(TARGET): sierra.py sierra.spec
 	pipenv run pyinstaller sierra.spec
