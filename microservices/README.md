@@ -32,7 +32,7 @@ $ git clone https://github.com/revaturelabs/sierra.git
 $ cd sierra/microservices/
 ```
 
-A basic description of the available Make goals are below. If you are using Windows, replace all occurences of `make` with `nmake` for the following instructions.
+If you are using Linux, you can use the Makefile included in this repository. A basic description of the available Make goals are below.
 
 ```bash
 # Run the "full" build lifecycle (setup, lint, compile)
@@ -52,9 +52,20 @@ $ make test
 
 # Generate a single-file executable
 $ make compile
-
-# The binary will be inside the dist folder
-# If you are using Windows, this will create a .exe file
-# If you are using Linux, it will create a binary executable
 ```
 
+If you are using Windows, you will need to write out the full commands. There is no single command for running the full build lifecycle or clean.
+
+```bash
+# Initialize your development environment
+$ pipenv install --dev
+
+# Lint source code files
+$ pipenv run flake8 sierra/*.py
+
+# Run tests (There are currently no tests for this project)
+$ pipenv run pytest
+
+# Generate a single-file executable
+$ pipenv run pyinstaller sierra.spec
+```

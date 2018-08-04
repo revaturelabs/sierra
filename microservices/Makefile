@@ -1,10 +1,5 @@
-ifdef COMSPEC
-	RM=RD /S /Q
-	TARGET=dist/sierra.exe
-else
-	RM=rm -rf
-	TARGET=dist/sierra
-endif
+RM=rm -rf
+TARGET=dist/sierra
 
 all: setup lint compile
 
@@ -15,6 +10,7 @@ clean:
 	$(RM) dist
 
 setup:
+	pip install pipenv
 	pipenv install --dev
 
 lint:
