@@ -13,6 +13,7 @@ Metadata:
           - DBStorageSize
           - DBMultiAZ
           - DBSecurityGroup
+          - OracleBucketName
       - Label: 
           default: "Use an existing database"
         Parameters: 
@@ -102,14 +103,19 @@ Parameters:
     Default: 10
     MinValue: 10
     MaxValue: 16384
+  OracleBucketName:
+    Type: String
+    Description: Enter the name of the S3 bucket with the Oracle drivers listed in the repository setup instructions.
 Resources:
   ReadS3BucketsInstanceProfile:
+    Condition: CreatingNewDB
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: "/"
       Roles:
       - Ref: ReadS3BucketsRole
   ReadS3BucketsPolicy:
+    Condition: CreatingNewDB
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: ReadS3BucketsPolicy
@@ -122,6 +128,7 @@ Resources:
       Roles:
       - Ref: ReadS3BucketsRole
   ReadS3BucketsRole:
+    Condition: CreatingNewDB
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -135,8 +142,9 @@ Resources:
           - sts:AssumeRole
       Path: "/"
 
-  # Create the Oracle RDS
+  # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
+    Condition: CreatingNewDB
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: 
@@ -147,7 +155,9 @@ Resources:
           FromPort: 1521
           ToPort: 1521
           CidrIp: 0.0.0.0/0
+  # Create the Oracle RDS
   SierraRDS:
+    Condition: CreatingNewDB
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage:
@@ -169,6 +179,7 @@ Resources:
         Ref: DBMultiAZ
   # EC2 to initialize RDS with SQL*PLUS client
   OracleClient:
+    Condition: CreatingNewDB
     Type: AWS::EC2::Instance
     DependsOn: SierraRDS
     Properties:
@@ -203,9 +214,9 @@ Resources:
             echo 'export PATH' >> /home/ec2-user/.bash_profile
             echo 'export ORACLE_HOME' >> /home/ec2-user/.bash_profile
             echo 'export LD_LIBRARY_PATH' >> /home/ec2-user/.bash_profile
-            aws s3 cp s3://c-erra/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
-            aws s3 cp s3://c-erra/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
-            aws s3 cp s3://c-erra/db_init/schema-generator.sql /home/ec2-user/
+            aws s3 cp s3://${Bucket}/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
+            aws s3 cp s3://${Bucket}/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
+            aws s3 cp s3://${Bucket}/db_init/schema-generator.sql /home/ec2-user/
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
             . /home/ec2-user/.bash_profile
@@ -217,11 +228,13 @@ Resources:
             Endpoint: !GetAtt SierraRDS.Endpoint.Address,
             Username: !Ref DBUsername,
             Password: !Ref DBPassword,
+            Bucket: !Ref OracleBucketName,
             Port: '1521',
             Provider: ORCL
             }
                       
   OracleClientSG:
+    Condition: CreatingNewDB
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: SSH and Oracle ports
