@@ -107,41 +107,6 @@ Parameters:
     Type: String
     Description: Enter the name of the S3 bucket with the Oracle drivers listed in the repository setup instructions.
 Resources:
-  ReadS3BucketsInstanceProfile:
-    Condition: CreatingNewDB
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Path: "/"
-      Roles:
-      - Ref: ReadS3BucketsRole
-  ReadS3BucketsPolicy:
-    Condition: CreatingNewDB
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ReadS3BucketsPolicy
-      PolicyDocument:
-        Statement:
-        - Effect: Allow
-          Action:
-          - s3:Read*
-          Resource: "*"
-      Roles:
-      - Ref: ReadS3BucketsRole
-  ReadS3BucketsRole:
-    Condition: CreatingNewDB
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
-
   # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
     Condition: CreatingNewDB
@@ -177,6 +142,43 @@ Resources:
         Ref: DBInstanceName
       MultiAZ: 
         Ref: DBMultiAZ
+  # Create EC2 profile for client
+  ReadS3BucketsInstanceProfile:
+    Condition: CreatingNewDB
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: ReadS3BucketsRole
+  # Create S3 policy for client
+  ReadS3BucketsPolicy:
+    Condition: CreatingNewDB
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ReadS3BucketsPolicy
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:Read*
+          Resource: "*"
+      Roles:
+      - Ref: ReadS3BucketsRole
+  # Create IAM role for client
+  ReadS3BucketsRole:
+    Condition: CreatingNewDB
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
   # EC2 to initialize RDS with SQL*PLUS client
   OracleClient:
     Condition: CreatingNewDB
@@ -232,7 +234,7 @@ Resources:
             Port: '1521',
             Provider: ORCL
             }
-                      
+  # Create Oracle client security group
   OracleClientSG:
     Condition: CreatingNewDB
     Type: AWS::EC2::SecurityGroup
