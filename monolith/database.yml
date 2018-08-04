@@ -170,11 +170,11 @@ Resources:
   # EC2 to initialize RDS with SQL*PLUS client
   OracleClient:
     Type: AWS::EC2::Instance
-      IamInstanceProfile:
-        Ref: ReadS3BucketsInstanceProfile
     DependsOn: SierraRDS
     Properties:
       # InstanceInitiatedShutdownBehavior: terminate
+      IamInstanceProfile:
+        Ref: ReadS3BucketsInstanceProfile
       ImageId: ami-b70554c8
       KeyName: rhel-cloud-admin
       InstanceType: t2.micro
