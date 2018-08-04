@@ -170,6 +170,8 @@ Resources:
   # EC2 to initialize RDS with SQL*PLUS client
   OracleClient:
     Type: AWS::EC2::Instance
+      IamInstanceProfile:
+        Ref: ReadS3BucketsInstanceProfile
     DependsOn: SierraRDS
     Properties:
       # InstanceInitiatedShutdownBehavior: terminate
@@ -222,8 +224,6 @@ Resources:
   OracleClientSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      IamInstanceProfile:
-        Ref: ReadS3BucketsInstanceProfile
       GroupDescription: SSH and Oracle ports
       SecurityGroupIngress:
         - IpProtocol: tcp
