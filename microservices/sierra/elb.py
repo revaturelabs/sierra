@@ -1,5 +1,5 @@
-from troposphere import GetAZs, Ref, Select, Sub
-from troposphere import Parameter, Tags
+from troposphere import Ref, Sub
+from troposphere import Parameter
 from troposphere.ec2 import SecurityGroup, SecurityGroupRule
 from troposphere.elasticloadbalancingv2 import (
     Action, Listener, LoadBalancer, TargetGroup

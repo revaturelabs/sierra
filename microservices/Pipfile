@@ -9,7 +9,6 @@ troposphere = "*"
 [dev-packages]
 pytest = "*"
 pyinstaller = "*"
-"boto3" = "*"
 "flake8" = "*"
 
 [requires]

@@ -1,24 +1,14 @@
-#!/usr/bin/env python3
-
-"""Generate a CloudFormation template for microservices.
-
-By default it uses the Sierrafile in the current working directory.
-
-"""
-
-import argparse
-import json
-import sys
-
 from troposphere import GetAtt, Ref, Sub
 from troposphere import Parameter, Template
 from troposphere.cloudformation import Stack
+
+import sierra.network
 
 
 S3_DOMAIN = 's3.amazonaws.com'
 
 
-def parse_services(parser, filename):
+def parse_sierrafile(raw_sierrafile):
     """Creates a list of services from a configuration file."""
 
     def update(old, new):
@@ -27,21 +17,37 @@ def parse_services(parser, filename):
                 old[k] = update(old.get(k, {}), v)
             else:
                 old.setdefault(k, v)
+        return old
 
-    try:
-        with open(filename) as f:
-            config = json.load(f)
-    except FileNotFoundError:
-        parser.print_help()
-        parser.exit()
+    environment = raw_sierrafile.get('environment', {})
+    params, env_vars, endpoints = [], {}, {}
 
-    default = config['default']
-    del config['default']
+    for name, value in environment.items():
+        if value is None:
+            params.append(name)
+        elif isinstance(value, str):
+            if '{ENDPOINT}' in value:
+                endpoints[name] = value
+            else:
+                env_vars[name] = value
+        else:
+            raise TypeError()
 
-    for service in config['services']:
-        update(service, default)
+    defaults = raw_sierrafile.get('default', {})
+    services = raw_sierrafile['services']
 
-    return config['services']
+    for name, service in services.items():
+        update(service, defaults)
+        for env_var in service.get('environment', []):
+            if env_var not in environment:
+                raise ValueError()
+
+    return {
+        'endpoints': endpoints,
+        'env_vars': env_vars,
+        'params': params,
+        'services': services,
+    }
 
 
 def parameter_groups(groups):
@@ -51,7 +57,7 @@ def parameter_groups(groups):
     ]
 
 
-def build_template(services):
+def build_template(sierrafile):
     template = Template()
 
     template.add_metadata({
@@ -71,6 +77,28 @@ def build_template(services):
         }
     })
 
+    # Network Parameters
+
+    vpc_cidr = template.add_parameter(Parameter(
+        'VpcCidr',
+        Type='String',
+        Default='192.172.0.0/16',
+    ))
+
+    subnet1_cidr = template.add_parameter(Parameter(
+        'Subnet1Cidr',
+        Type='String',
+        Default='192.172.1.0/24',
+    ))
+
+    subnet2_cidr = template.add_parameter(Parameter(
+        'Subnet2Cidr',
+        Type='String',
+        Default='192.172.2.0/24',
+    ))
+
+    # ECS Parameters
+
     cluster_size = template.add_parameter(Parameter(
         'ClusterSize',
         Type='Number',
@@ -88,17 +116,7 @@ def build_template(services):
         Type='AWS::EC2::KeyPair::KeyName',
     ))
 
-    subnet1_cidr = template.add_parameter(Parameter(
-        'Subnet1Cidr',
-        Type='String',
-        Default='192.172.1.0/24',
-    ))
-
-    subnet2_cidr = template.add_parameter(Parameter(
-        'Subnet2Cidr',
-        Type='String',
-        Default='192.172.2.0/24',
-    ))
+    # Other Parameters
 
     bucket = template.add_parameter(Parameter(
         'TemplateBucket',
@@ -107,33 +125,24 @@ def build_template(services):
         Default='templates.sierra.goeppes',
     ))
 
-    vpc_cidr = template.add_parameter(Parameter(
-        'VpcCidr',
-        Type='String',
-        Default='192.172.0.0/16',
-    ))
-
     def template_url(name):
         return Sub(f'https://{S3_DOMAIN}/${{{bucket.title}}}/templates/{name}')
 
-    network = template.add_resource(Stack(
-        'Network',
-        TemplateURL=template_url('network.yml'),
-        Parameters={
-            'Prefix': Ref('AWS::StackName'),
-            'VpcCidr': Ref(vpc_cidr),
-            'Subnet1Cidr': Ref(subnet1_cidr),
-            'Subnet2Cidr': Ref(subnet2_cidr),
-        }
-    ))
+    network = sierra.network.inject(
+        template,
+        prefix='AWS::StackName',
+        vpc_cidr=vpc_cidr,
+        subnet1_cidr=subnet1_cidr,
+        subnet2_cidr=subnet2_cidr,
+    )
 
     elb = template.add_resource(Stack(
         'ELB',
         TemplateURL=template_url('load-balancer.yml'),
         Parameters={
             'Prefix': Ref('AWS::StackName'),
-            'Subnets': GetAtt(network, 'Outputs.Subnets'),
-            'VPC': GetAtt(network, 'Outputs.VpcId'),
+            'Subnets': network.subnets,
+            'VPC': network.vpc,
         }
     ))
 
@@ -145,20 +154,20 @@ def build_template(services):
             'InstanceType': Ref(instance_type),
             'KeyName': Ref(key_name),
             'SourceSecurityGroup': GetAtt(elb, 'Outputs.SecurityGroup'),
-            'Subnets': GetAtt(network, 'Outputs.Subnets'),
-            'VPC': GetAtt(network, 'Outputs.VpcId'),
+            'Subnets': network.subnets,
+            'VPC': network.vpc,
         }
     ))
 
-    for service in services:
+    for name, service in sierrafile['services'].items():
         template.add_resource(Stack(
-            service['name'] + 'Service',
+            name + 'Service',
             TemplateURL=template_url('ecs-service.yml'),
             Parameters={
-                'ContainerName': service['name'] + '-container',
+                'ContainerName': name + '-container',
                 'ContainerImage': service['docker']['image'],
                 'ContainerPort': service['docker']['port'],
-                'ServiceName': service['name'] + '-service',
+                'ServiceName': name + '-service',
                 'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
                 'TargetGroup': GetAtt(elb, 'Outputs.TargetGroup'),
             }
@@ -176,29 +185,3 @@ def build_template(services):
 #        ))
 
     return template
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-f', '--file', type=str,
-                        default='Sierrafile')
-    parser.add_argument('-o', '--out', type=argparse.FileType('w'),
-                        default=sys.stdout)
-    parser.add_argument('--format', choices=['yaml', 'json'],
-                        default='yaml')
-
-    args = parser.parse_args()
-
-    services = parse_services(parser, args.file)
-    template = build_template(services)
-
-    if args.format == 'json':
-        result = template.to_json()
-    else:
-        result = template.to_yaml()
-
-    print(result, file=args.out)
-
-
-if __name__ == '__main__':
-    main()

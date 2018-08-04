@@ -3,7 +3,7 @@
 block_cipher = None
 
 
-a = Analysis(['sierra.py'],
+a = Analysis(['sierra/__main__.py'],
              pathex=[],
              binaries=[],
              datas=[],

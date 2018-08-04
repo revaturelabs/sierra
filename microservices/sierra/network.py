@@ -1,5 +1,5 @@
-from troposphere import GetAZs, Ref, Select, Sub
-from troposphere import Parameter, Tags
+from collections import namedtuple
+from troposphere import GetAZs, Join, Ref, Select, Sub, Tags
 from troposphere.ec2 import (
     InternetGateway, Route, RouteTable,
     Subnet, SubnetRouteTableAssociation,
@@ -7,27 +7,10 @@ from troposphere.ec2 import (
 )
 
 
-def add_to(template):
-    prefix = template.add_parameter(Parameter(
-        'Prefix',
-        Type='String',
-    ))
-    vpc_cidr = template.add_parameter(Parameter(
-        'VpcCidr',
-        Type='String',
-        Default='192.172.0.0/16',
-    ))
-    subnet1_cidr = template.add_parameter(Parameter(
-        'Subnet1Cidr',
-        Type='String',
-        Default='192.172.1.0/24',
-    ))
-    subnet2_cidr = template.add_parameter(Parameter(
-        'Subnet2Cidr',
-        Type='String',
-        Default='192.172.2.0/24',
-    ))
+Network = namedtuple('Network', ['vpc', 'subnets'])
 
+
+def inject(template, prefix, vpc_cidr, subnet1_cidr, subnet2_cidr):
     vpc = template.add_resource(VPC(
         'VPC',
         CidrBlock=Ref(vpc_cidr),
@@ -64,7 +47,7 @@ def add_to(template):
         AvailabilityZone=Select(0, GetAZs()),
         MapPublicIpOnLaunch=True,
         CidrBlock=Ref(subnet1_cidr),
-        Tags=Tags(Name=Sub(f'${{{prefix.title}}} (Public)')),
+        Tags=Tags(Name=Sub(f'${{{prefix}}} (Public)')),
     ))
 
     subnet2 = template.add_resource(Subnet(
@@ -73,7 +56,7 @@ def add_to(template):
         AvailabilityZone=Select(1, GetAZs()),
         MapPublicIpOnLaunch=True,
         CidrBlock=Ref(subnet2_cidr),
-        Tags=Tags(Name=Sub(f'${{{prefix.title}}} (Public)')),
+        Tags=Tags(Name=Sub(f'${{{prefix}}} (Public)')),
     ))
 
     template.add_resource(SubnetRouteTableAssociation(
@@ -87,3 +70,8 @@ def add_to(template):
         RouteTableId=Ref(route_table),
         SubnetId=Ref(subnet2),
     ))
+
+    return Network(
+        vpc=Ref(vpc),
+        subnets=Join(',', [Ref(subnet1), Ref(subnet2)]),
+    )
