@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-troposphere = "*"
+troposphere = {extras = ["policy"]}
 
 [dev-packages]
 pytest = "*"

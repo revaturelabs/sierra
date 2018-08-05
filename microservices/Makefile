@@ -14,7 +14,7 @@ setup:
 	pipenv install --dev
 
 lint:
-	pipenv run flake8 sierra/*.py
+	pipenv run flake8 sierra
 
 test:
 	pipenv run pytest

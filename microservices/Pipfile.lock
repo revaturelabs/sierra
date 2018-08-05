@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "719d67a11606b460d7f90153db4fc19350b5a1d9d1c03293dcc3ec8a1e0bf34c"
+            "sha256": "8822c59680ad0aa56c800a00ac56ce61989454c76250c1d903ea0c17f5b6e511"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,6 +16,12 @@
         ]
     },
     "default": {
+        "awacs": {
+            "hashes": [
+                "sha256:1109030b492627f4ec319bf23bc6d4ef1ddb9c648568339e98e23f7f7915714b"
+            ],
+            "version": "==0.8.0"
+        },
         "cfn-flip": {
             "hashes": [
                 "sha256:9c61039c71995ab204c005ec46d47d0f7a109e9f1b6d63569397f8bc648a8151"

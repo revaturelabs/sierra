@@ -1,6 +1,9 @@
 from troposphere import GetAtt, Ref, Sub
 from troposphere import Parameter, Template
 from troposphere.cloudformation import Stack
+from troposphere.ec2 import SecurityGroup, SecurityGroupRule
+from troposphere.elasticloadbalancingv2 import (
+    Action, Listener, LoadBalancer, TargetGroup)
 
 import sierra.network
 
@@ -20,16 +23,17 @@ def parse_sierrafile(raw_sierrafile):
         return old
 
     environment = raw_sierrafile.get('environment', {})
-    params, env_vars, endpoints = [], {}, {}
+    params, env_vars = [], {}
 
     for name, value in environment.items():
         if value is None:
-            params.append(name)
+            identifier = 'EnvironmentVariable' + str(len(params))
+            params.append((identifier, name))
+            env_vars[name] = Ref(identifier)
         elif isinstance(value, str):
             if '{ENDPOINT}' in value:
-                endpoints[name] = value
-            else:
-                env_vars[name] = value
+                value = Sub(value.format(ENDPOINT='${LoadBalancer.DNSName}'))
+            env_vars[name] = value
         else:
             raise TypeError()
 
@@ -43,26 +47,26 @@ def parse_sierrafile(raw_sierrafile):
                 raise ValueError()
 
     return {
-        'endpoints': endpoints,
         'env_vars': env_vars,
         'params': params,
         'services': services,
     }
 
 
-def parameter_groups(groups):
-    return [
-        {'Label': {'default': name}, 'Parameters': params}
-        for name, params in groups.items()
-    ]
+def build_interface(env_vars):
 
+    def clean(d):
+        return {k: v for k, v in d.items() if v}
 
-def build_template(sierrafile):
-    template = Template()
+    def parameter_groups(groups):
+        return [
+            {'Label': {'default': name}, 'Parameters': params}
+            for name, params in groups.items()
+        ]
 
-    template.add_metadata({
-        'AWS::CloudFormation::Interface': {
-            'ParameterGroups': parameter_groups({
+    return {
+        'AWS::CloudFormation::Interface': clean({
+            'ParameterGroups': parameter_groups(clean({
                 'Network Configuration': [
                     'VpcCidr',
                     'Subnet1Cidr',
@@ -73,9 +77,22 @@ def build_template(sierrafile):
                     'ClusterSize',
                     'KeyName',
                 ],
-            }),
-        }
-    })
+                'Environment Variables': [
+                    k for k, v in env_vars
+                ],
+            })),
+            'ParameterLabels': {
+                k: {'default': v}
+                for k, v in env_vars
+            },
+        }),
+    }
+
+
+def build_template(sierrafile):
+    template = Template()
+
+    template.add_metadata(build_interface(sierrafile['params']))
 
     # Network Parameters
 
@@ -116,6 +133,15 @@ def build_template(sierrafile):
         Type='AWS::EC2::KeyPair::KeyName',
     ))
 
+    # Environment Variable Parameters
+
+    for env_var_param, env_var_name in sierrafile['params']:
+        template.add_parameter(Parameter(
+            env_var_param,
+            Type='String',
+            NoEcho=True,
+        ))
+
     # Other Parameters
 
     bucket = template.add_parameter(Parameter(
@@ -136,15 +162,53 @@ def build_template(sierrafile):
         subnet2_cidr=subnet2_cidr,
     )
 
-    elb = template.add_resource(Stack(
-        'ELB',
-        TemplateURL=template_url('load-balancer.yml'),
-        Parameters={
-            'Prefix': Ref('AWS::StackName'),
-            'Subnets': network.subnets,
-            'VPC': network.vpc,
-        }
+    # Elastic Load Balancer
+
+    security_group = template.add_resource(SecurityGroup(
+        'SecurityGroup',
+        GroupName=Sub('${AWS::StackName}-elb-sg'),
+        GroupDescription=Sub('${AWS::StackName}-elb-sg'),
+        VpcId=network.vpc,
+        SecurityGroupIngress=[
+            SecurityGroupRule(
+                CidrIp='0.0.0.0/0',
+                IpProtocol='tcp',
+                FromPort=80,
+                ToPort=80,
+            ),
+        ],
     ))
+
+    target_group = template.add_resource(TargetGroup(
+        'DefaultTargetGroup',
+        Name=Sub('${AWS::StackName}-default'),
+        Port=80,
+        Protocol='HTTP',
+        TargetType='instance',
+        VpcId=network.vpc,
+    ))
+
+    elb = template.add_resource(LoadBalancer(
+        'LoadBalancer',
+        Name=Sub('${AWS::StackName}-elb'),
+        Subnets=network.subnets,
+        SecurityGroups=[Ref(security_group)],
+    ))
+
+    template.add_resource(Listener(
+        'LoadBalancerListener',
+        LoadBalancerArn=Ref(elb),
+        Port=80,
+        Protocol='HTTP',
+        DefaultActions=[
+            Action(
+                TargetGroupArn=Ref(target_group),
+                Type='forward',
+            )
+        ],
+    ))
+
+    # Resources
 
     cluster = template.add_resource(Stack(
         'Cluster',
@@ -153,7 +217,7 @@ def build_template(sierrafile):
             'ClusterSize': Ref(cluster_size),
             'InstanceType': Ref(instance_type),
             'KeyName': Ref(key_name),
-            'SourceSecurityGroup': GetAtt(elb, 'Outputs.SecurityGroup'),
+            'SourceSecurityGroup': Ref(security_group),
             'Subnets': network.subnets,
             'VPC': network.vpc,
         }
@@ -169,7 +233,7 @@ def build_template(sierrafile):
                 'ContainerPort': service['docker']['port'],
                 'ServiceName': name + '-service',
                 'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
-                'TargetGroup': GetAtt(elb, 'Outputs.TargetGroup'),
+                'TargetGroup': Ref(target_group),
             }
         ))
 
