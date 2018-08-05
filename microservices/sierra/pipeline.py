@@ -5,51 +5,17 @@ import awacs.s3
 import awacs.ssm
 import awacs.sts
 import awacs.logs
-
 from awacs.aws import Allow, PolicyDocument, Principal, Statement
 
-from troposphere import AWSObject, AWSProperty
 from troposphere import GetAtt, Ref, Sub
 from troposphere.codebuild import Artifacts, Environment, Project, Source
 from troposphere.codepipeline import (
     Actions, ActionTypeId, ArtifactStore, InputArtifacts,
-    OutputArtifacts, Pipeline, Stages
-)
+    OutputArtifacts, Pipeline, Stages)
 from troposphere.iam import Policy, Role
 from troposphere.s3 import Bucket
-from troposphere.validators import boolean, integer
 
-
-basestring = (str, bytes)
-
-
-class AuthenticationConfiguration(AWSProperty):
-    props = {
-        'AllowedIPRange': (basestring, False),
-        'SecretToken': (basestring, False),
-    }
-
-
-class FilterRule(AWSProperty):
-    props = {
-        'JsonPath': (basestring, True),
-        'MatchEquals': (basestring, False),
-    }
-
-
-class Webhook(AWSObject):
-    resource_type = 'AWS::CodePipeline::Webhook'
-
-    props = {
-        'Name': (basestring, False),
-        'Authentication': (basestring, True),
-        'AuthenticationConfiguration': (AuthenticationConfiguration, True),
-        'Filters': ([FilterRule], True),
-        'RegisterWithThirdParty': (boolean, False),
-        'TargetPipeline': (basestring, True),
-        'TargetAction': (basestring, True),
-        'TargetPipelineVersion': (integer, True),
-    }
+from .webhook import AuthenticationConfiguration, FilterRule, Webhook
 
 
 def inject(template, github, github_token, cluster, service):
