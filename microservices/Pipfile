@@ -4,8 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-troposphere = "*"
-awacs = "*"
 troposphere = {extras = ["policy"]}
 
 [dev-packages]
