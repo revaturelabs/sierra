@@ -1,34 +1,49 @@
 {
+  "environment": {
+    "CALIBER_CONFIG_GIT_URI": "https://gitlab.com/revalution/caliber-configuration.git",
+    "CALIBER_CONFIG_GIT_USERNAME": null,
+    "CALIBER_CONFIG_GIT_PASSWORD": null,
+    "CALIBER_CONFIG_SERVER_URL": "http://{ENDPOINT}:8888/",
+    "CALIBER_EUREKA_SERVER_URL": "http://{ENDPOINT}:8761/eureka/"
+  },
   "default": {
     "git": {
       "github-user": "goeppes",
-      "github-token": "blah",
       "github-branch": "master"
-    }
+    },
+    "environment": [
+      "CALIBER_CONFIG_SERVER_URL",
+      "CALIBER_EUREKA_SERVER_URL"
+    ]
   },
-  "services": [
-    {
-      "name": "CaliberConfig",
+  "services": {
+    "CaliberConfig": {
       "docker": {
         "image": "revaturesierra/caliber-config",
         "port": 8888
       },
       "git": {
         "github-repo": "revaturelabs/caliber-config"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_GIT_URI",
+        "CALIBER_CONFIG_GIT_USERNAME",
+        "CALIBER_CONFIG_GIT_PASSWORD"
+      ]
     },
-    {
-      "name": "CaliberEureka",
+    "CaliberEureka": {
       "docker": {
         "image": "revaturesierra/caliber-eureka",
         "port": 8761
       },
       "git": {
         "github-repo": "revaturelabs/caliber-eureka"
-      }
+      },
+      "environment": [
+        "CALIBER_CONFIG_SERVER_URL"
+      ]
     },
-    {
-      "name": "CaliberZuul",
+    "CaliberZuul": {
       "docker": {
         "image": "revaturesierra/caliber-zuul",
         "port": 9999
@@ -37,8 +52,7 @@
         "github-repo": "revaturelabs/caliber-zuul"
       }
     },
-    {
-      "name": "CaliberTrainingService",
+    "CaliberTrainingService": {
       "docker": {
         "image": "revaturesierra/caliber-training-service",
         "port": 9898
@@ -47,8 +61,7 @@
         "github-repo": "revaturelabs/caliber-training-service"
       }
     },
-    {
-      "name": "CaliberDocumentService",
+    "CaliberDocumentService": {
       "docker": {
         "image": "revaturesierra/caliber-document-service",
         "port": 9000
@@ -57,5 +70,5 @@
         "github-repo": "revaturelabs/caliber-document-service"
       }
     }
-  ]
+  }
 }
