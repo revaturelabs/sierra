@@ -10,9 +10,6 @@ from .elb import ELB_NAME
 from .utils import AttrDict
 
 
-S3_DOMAIN = 's3.amazonaws.com'
-
-
 def parse_sierrafile(raw_sierrafile):
     """Creates a list of services from a configuration file."""
 
@@ -25,13 +22,13 @@ def parse_sierrafile(raw_sierrafile):
         return old
 
     environment = raw_sierrafile.get('environment', {})
-    params, env_vars = [], {}
+    extra_params, env_vars = [], {}
 
     for name, value in environment.items():
         if value is None:
-            identifier = 'EnvironmentVariable' + str(len(params))
-            params.append((identifier, name))
+            identifier = 'EnvironmentVariable' + str(len(extra_params))
             env_vars[name] = Ref(identifier)
+            extra_params.append((identifier, name))
         elif isinstance(value, str):
             if '{ENDPOINT}' in value:
                 value = Sub(value.format(ENDPOINT=f'${{{ELB_NAME}.DNSName}}'))
@@ -49,8 +46,8 @@ def parse_sierrafile(raw_sierrafile):
                 raise ValueError()
 
     return AttrDict(
+        extra_params=extra_params,
         env_vars=env_vars,
-        params=params,
         services=services,
     )
 
@@ -94,7 +91,7 @@ def build_interface(env_vars):
 def build_template(sierrafile):
     template = Template()
 
-    template.add_metadata(build_interface(sierrafile['params']))
+    template.add_metadata(build_interface(sierrafile.extra_params))
 
     parameters = AttrDict(
 
@@ -145,7 +142,7 @@ def build_template(sierrafile):
 
     # Environment Variable Parameters
 
-    for env_var_param, env_var_name in sierrafile['params']:
+    for env_var_param, env_var_name in sierrafile.extra_params:
         template.add_parameter(Parameter(
             env_var_param,
             Type='String',
@@ -154,8 +151,10 @@ def build_template(sierrafile):
 
     def template_url(name):
         return Sub(
-            f'https://{S3_DOMAIN}/'
-            '${{{parameters.bucket.title}}}/templates/{name}')
+            f'https://s3.amazonaws.com/'
+            f'${{{parameters.bucket.title}}}/'
+            f'templates/{name}'
+        )
 
     # Resource Declarations
 
@@ -189,8 +188,8 @@ def build_template(sierrafile):
             TemplateURL=template_url('ecs-service.yml'),
             Parameters={
                 'ContainerName': name + '-container',
-                'ContainerImage': service['docker']['image'],
-                'ContainerPort': service['docker']['port'],
+                'ContainerImage': service.docker.image,
+                'ContainerPort': service.docker.port,
                 'ServiceName': name + '-service',
                 'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
                 'TargetGroup': elb.target_group,

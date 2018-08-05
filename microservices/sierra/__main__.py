@@ -3,6 +3,7 @@ import json
 import sys
 
 import sierra
+from sierra.utils import AttrDict
 
 
 def main():
@@ -22,7 +23,7 @@ def main():
 
     try:
         with open(args.file) as f:
-            raw_sierrafile = json.load(f)
+            raw_sierrafile = json.load(f, object_hook=AttrDict)
     except FileNotFoundError:
         parser.print_help()
         parser.exit()
