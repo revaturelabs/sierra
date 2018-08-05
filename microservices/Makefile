@@ -1,12 +1,7 @@
-ifdef COMSPEC
-	RM=RD /S /Q
-	TARGET=dist/sierra.exe
-else
-	RM=rm -rf
-	TARGET=dist/sierra
-endif
+RM=rm -rf
+TARGET=dist/sierra
 
-all: lint test $(TARGET)
+all: setup lint compile
 
 clean:
 	$(RM) .pytest_cache
@@ -15,14 +10,16 @@ clean:
 	$(RM) dist
 
 setup:
-	pip3 install --user pipenv
+	pip install pipenv
 	pipenv install --dev
 
 lint:
-	pipenv run flake8 sierra.py
+	pipenv run flake8 sierra
 
 test:
 	pipenv run pytest
 
-$(TARGET): sierra.py
+compile: $(TARGET)
+
+$(TARGET): sierra.spec sierra/*.py
 	pipenv run pyinstaller sierra.spec

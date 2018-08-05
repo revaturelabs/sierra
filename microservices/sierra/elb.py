@@ -1,30 +1,21 @@
-from troposphere import GetAZs, Ref, Select, Sub
-from troposphere import Parameter, Tags
+from troposphere import Ref, Sub
 from troposphere.ec2 import SecurityGroup, SecurityGroupRule
 from troposphere.elasticloadbalancingv2 import (
     Action, Listener, LoadBalancer, TargetGroup
 )
 
+from .utils import AttrDict
 
-def add_to(template):
-    prefix = template.add_parameter(Parameter(
-        'Prefix',
-        Type='String',
-    ))
-    subnet_ids = template.add_parameter(Parameter(
-        'Subnets',
-        Type='List<AWS::EC2::Subnet::Id>',
-    ))
-    vpc_id = template.add_parameter(Parameter(
-        'VPC',
-        Type='AWS::EC2::VPC::Id',
-    ))
 
+ELB_NAME = 'ElbLoadBalancer'
+
+
+def inject(template, network):
     security_group = template.add_resource(SecurityGroup(
-        'SecurityGroup',
-        GroupName=Sub(f'${{{prefix.title}}}-elb-sg'),
-        GroupDescription=Sub(f'${{{prefix.title}}}-elb-sg'),
-        VpcId=Ref(vpc_id),
+        'ElbSecurityGroup',
+        GroupName=Sub('${AWS::StackName}-elb-sg'),
+        GroupDescription=Sub('${AWS::StackName}-elb-sg'),
+        VpcId=network.vpc,
         SecurityGroupIngress=[
             SecurityGroupRule(
                 CidrIp='0.0.0.0/0',
@@ -36,23 +27,23 @@ def add_to(template):
     ))
 
     target_group = template.add_resource(TargetGroup(
-        'DefaultTargetGroup',
-        Name=Sub(f'${{{prefix.title}}}-default'),
+        'ElbDefaultTargetGroup',
+        Name=Sub('${AWS::StackName}-default'),
         Port=80,
         Protocol='HTTP',
         TargetType='instance',
-        VpcId=Ref(vpc_id),
+        VpcId=network.vpc,
     ))
 
     elb = template.add_resource(LoadBalancer(
-        'LoadBalancer',
-        Name=Sub(f'${{{prefix.title}}}-elb'),
-        Subnets=Ref(subnet_ids),
+        ELB_NAME,
+        Name=Sub('${AWS::StackName}-elb'),
+        Subnets=network.subnets,
         SecurityGroups=[Ref(security_group)],
     ))
 
     template.add_resource(Listener(
-        'LoadBalancerListener',
+        'ElbLoadBalancerListener',
         LoadBalancerArn=Ref(elb),
         Port=80,
         Protocol='HTTP',
@@ -63,3 +54,9 @@ def add_to(template):
             )
         ],
     ))
+
+    return AttrDict(
+        load_balancer=Ref(elb),
+        security_group=Ref(security_group),
+        target_group=Ref(target_group),
+    )
