@@ -132,6 +132,12 @@ def build_template(sierrafile):
 
         # Other Parameters
 
+        github_token=template.add_parameter(Parameter(
+            'GitHubToken',
+            Type='String',
+            NoEcho=True,
+        )),
+
         bucket=template.add_parameter(Parameter(
             'TemplateBucket',
             Description='The S3 bucket containing all of the templates.',
@@ -188,8 +194,8 @@ def build_template(sierrafile):
             TemplateURL=template_url('ecs-service.yml'),
             Parameters={
                 'ContainerName': name + '-container',
-                'ContainerImage': service.docker.image,
-                'ContainerPort': service.docker.port,
+                'ContainerImage': service.container.image,
+                'ContainerPort': service.container.port,
                 'ServiceName': name + '-service',
                 'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
                 'TargetGroup': elb.target_group,
@@ -200,10 +206,10 @@ def build_template(sierrafile):
 #            service['name'] + 'Pipeline',
 #            TemplateURL=template_url('pipeline.yml'),
 #            Parameters={
-#                'GitRepo': service['git']['github-repo'],
-#                'GitBranch': service['git']['github-branch'],
-#                'GitUser': service['git']['github-user'],
-#                'GitToken': service['git']['github-token'],
+#                'GitUser': service.pipeline.user,
+#                'GitRepo': service.pipeline.repo,
+#                'GitBranch': service.pipeline.branch,
+#                'GitToken': Ref(parameters.github_token),
 #            }
 #        ))
 
