@@ -41,7 +41,7 @@ $ make
 # Remove all generated files
 $ make clean
 
-# Initialize your development environment
+# Update your development environment
 $ make setup
 
 # Lint source code files
@@ -57,11 +57,11 @@ $ make compile
 If you are using Windows, you will need to write out the full commands. There is no single command for running the full build lifecycle or clean.
 
 ```bash
-# Initialize your development environment
+# Update your development environment
 $ pipenv install --dev
 
 # Lint source code files
-$ pipenv run flake8 sierra/*.py
+$ pipenv run flake8 sierra
 
 # Run tests (There are currently no tests for this project)
 $ pipenv run pytest
