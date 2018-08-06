@@ -11,13 +11,24 @@ from .elb import ELB_NAME
 from .utils import AttrDict
 
 
+DEFAULTS = AttrDict({
+    'container': AttrDict({
+        'cpu': 128,
+        'memory': 256,
+    }),
+    'pipeline': AttrDict({
+        'enable': False,
+    }),
+})
+
+
 def parse_sierrafile(raw_sierrafile):
     """Creates a list of services from a configuration file."""
 
     def update(old, new):
         for k, v in new.items():
             if isinstance(v, dict):
-                old[k] = update(old.get(k, {}), v)
+                old[k] = update(old.get(k, AttrDict()), v)
             else:
                 old.setdefault(k, v)
         return old
@@ -41,7 +52,12 @@ def parse_sierrafile(raw_sierrafile):
     services = raw_sierrafile['services']
 
     for name, service in services.items():
+        if 'pipeline' in service:
+            service.pipeline.enable = True
+
         update(service, defaults)
+        update(service, DEFAULTS)
+
         for env_var in service.get('environment', []):
             if env_var not in environment:
                 raise ValueError()
@@ -194,7 +210,7 @@ def build_template(sierrafile):
     ))
 
     for name, settings in sierrafile.services.items():
-        sierra.service.inject(
+        service = sierra.service.inject(
             template,
             name=name,
             container_settings=settings.container,
@@ -208,15 +224,14 @@ def build_template(sierrafile):
             },
         )
 
-#        template.add_resource(Stack(
-#            service['name'] + 'Pipeline',
-#            TemplateURL=template_url('pipeline.yml'),
-#            Parameters={
-#                'GitUser': service.pipeline.user,
-#                'GitRepo': service.pipeline.repo,
-#                'GitBranch': service.pipeline.branch,
-#                'GitToken': Ref(parameters.github_token),
-#            }
-#        ))
+        if settings.pipeline.enable:
+            sierra.pipeline.inject(
+                template,
+                name=name,
+                settings=settings.pipeline,
+                github_token=Ref(parameters.github_token),
+                cluster=cluster,
+                service=service.service,
+            )
 
     return template

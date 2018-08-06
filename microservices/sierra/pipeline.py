@@ -18,14 +18,14 @@ from troposphere.s3 import Bucket
 from .webhook import AuthenticationConfiguration, FilterRule, Webhook
 
 
-def inject(template, github, github_token, cluster, service):
+def inject(template, name, settings, github_token, cluster, service):
     artifact_bucket = template.add_resource(Bucket(
-        'ArtifactBucket',
+        f'{name}ArtifactBucket',
         DeletionPolicy='Retain'
     ))
 
     codebuild_role = template.add_resource(Role(
-        'CodeBuildServiceRole',
+        f'{name}CodeBuildServiceRole',
         Path='/',
         AssumeRolePolicyDocument=PolicyDocument(
             Version='2012-10-17',
@@ -77,7 +77,7 @@ def inject(template, github, github_token, cluster, service):
     ))
 
     codepipeline_role = template.add_resource(Role(
-        'CodePipelineServiceRole',
+        f'{name}CodePipelineServiceRole',
         Path='/',
         AssumeRolePolicyDocument=PolicyDocument(
             Version='2012-10-17',
@@ -131,8 +131,8 @@ def inject(template, github, github_token, cluster, service):
     ))
 
     project = template.add_resource(Project(
-        f'{service.title}CodeBuildProject',
-        Name=f'{service.title}',
+        f'{name}CodeBuildProject',
+        Name=f'{name}Build',
         ServiceRole=Ref(codebuild_role),
         Artifacts=Artifacts(Type='CODEPIPELINE'),
         Source=Source(Type='CODEPIPELINE'),
@@ -144,7 +144,7 @@ def inject(template, github, github_token, cluster, service):
     ))
 
     pipeline = template.add_resource(Pipeline(
-        f'{service.title}Pipeline',
+        f'{name}Pipeline',
         RoleArn=GetAtt(codepipeline_role, 'Arn'),
         ArtifactStore=ArtifactStore(
             Type='S3',
@@ -164,9 +164,9 @@ def inject(template, github, github_token, cluster, service):
                     OutputArtifacts=[OutputArtifacts(Name='Source')],
                     RunOrder='1',
                     Configuration={
-                        'Owner': github['user'],
-                        'Repo': github['repo'],
-                        'Branch': github['branch'],
+                        'Owner': settings.user,
+                        'Repo': settings.repo,
+                        'Branch': settings.branch,
                         'OAuthToken': Ref(github_token),
                     },
                 )],
@@ -212,22 +212,18 @@ def inject(template, github, github_token, cluster, service):
     ))
 
     template.add_resource(Webhook(
-        f'{service.title}CodePipelineWebhook',
-        Name=f'{service.title}-webhook',
+        f'{name}CodePipelineWebhook',
+        Name=f'{name}-webhook',
         Authentication='GITHUB_HMAC',
         AuthenticationConfiguration=AuthenticationConfiguration(
             SecretToken=Ref(github_token),
         ),
         Filters=[FilterRule(
             JsonPath='$.ref',
-            MatchEquals=Sub('refs/heads/${{{}}}'.format(github['branch']))
+            MatchEquals=Sub(f'refs/heads/${{{settings.branch}}}')
         )],
         TargetAction='Source',
         TargetPipeline=Ref(pipeline),
         TargetPipelineVersion=1,
         RegisterWithThirdParty=True,
     ))
-
-    return {
-        'PipelineUrl': 'blah',
-    }

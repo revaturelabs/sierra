@@ -1,0 +1,59 @@
+{
+  "environment": {
+    "CALIBER_CONFIG_GIT_URI": "https://gitlab.com/revalution/caliber-configuration.git",
+    "CALIBER_CONFIG_GIT_USERNAME": null,
+    "CALIBER_CONFIG_GIT_PASSWORD": null,
+    "CALIBER_CONFIG_SERVER_URL": "http://{ENDPOINT}:8888/",
+    "CALIBER_EUREKA_SERVER_URL": "http://{ENDPOINT}:8761/eureka/"
+  },
+  "default": {
+    "container": {
+      "cpu": 256,
+      "memory": 512
+    },
+    "environment": [
+      "CALIBER_CONFIG_SERVER_URL",
+      "CALIBER_EUREKA_SERVER_URL"
+    ]
+  },
+  "services": {
+    "CaliberConfig": {
+      "container": {
+        "image": "revaturesierra/caliber-config",
+        "port": 8888
+      },
+      "environment": [
+        "CALIBER_CONFIG_GIT_URI",
+        "CALIBER_CONFIG_GIT_USERNAME",
+        "CALIBER_CONFIG_GIT_PASSWORD"
+      ]
+    },
+    "CaliberEureka": {
+      "container": {
+        "image": "revaturesierra/caliber-eureka",
+        "port": 8761
+      },
+      "environment": [
+        "CALIBER_CONFIG_SERVER_URL"
+      ]
+    },
+    "CaliberZuul": {
+      "container": {
+        "image": "revaturesierra/caliber-zuul",
+        "port": 9999
+      }
+    },
+    "CaliberTrainingService": {
+      "container": {
+        "image": "revaturesierra/caliber-training-service",
+        "port": 9898
+      }
+    },
+    "CaliberDocumentService": {
+      "container": {
+        "image": "revaturesierra/caliber-document-service",
+        "port": 9000
+      }
+    }
+  }
+}
