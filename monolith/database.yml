@@ -259,10 +259,10 @@ Outputs:
     Value: !Sub
       - "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
       - {
-        Endpoint: !GetAtt SierraRDS.Endpoint.Address
-        Username: !Ref DBUsername
-        Password: !Ref DBPassword
-        Port: 1521
+        Endpoint: !GetAtt SierraRDS.Endpoint.Address,
+        Username: !Ref DBUsername,
+        Password: !Ref DBPassword,
+        Port: 1521,
         Provider: ORCL
         }
 
