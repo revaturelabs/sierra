@@ -1,4 +1,4 @@
-from troposphere import GetAZs, Join, Ref, Select, Sub, Tags
+from troposphere import GetAZs, Ref, Select, Sub, Tags
 from troposphere.ec2 import (
     InternetGateway, Route, RouteTable,
     Subnet, SubnetRouteTableAssociation,
@@ -71,5 +71,5 @@ def inject(template, vpc_cidr, subnet1_cidr, subnet2_cidr):
 
     return AttrDict(
         vpc=Ref(vpc),
-        subnets=Join(',', [Ref(subnet1), Ref(subnet2)]),
+        subnets=[Ref(subnet1), Ref(subnet2)],
     )

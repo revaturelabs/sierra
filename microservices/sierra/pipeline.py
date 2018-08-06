@@ -1,10 +1,10 @@
 import awacs.codebuild
 import awacs.ecs
 import awacs.iam
+import awacs.logs
 import awacs.s3
 import awacs.ssm
 import awacs.sts
-import awacs.logs
 from awacs.aws import Allow, PolicyDocument, Principal, Statement
 
 from troposphere import GetAtt, Ref, Sub
@@ -23,8 +23,6 @@ def inject(template, github, github_token, cluster, service):
         'ArtifactBucket',
         DeletionPolicy='Retain'
     ))
-
-    artifact_bucket_arn = awacs.s3.ARN(f'${{{artifact_bucket.title}}}/*')
 
     codebuild_role = template.add_resource(Role(
         'CodeBuildServiceRole',
@@ -101,7 +99,9 @@ def inject(template, github, github_token, cluster, service):
                 Version='2012-10-17',
                 Statement=[
                     Statement(
-                        Resource=[Sub(artifact_bucket_arn)],
+                        Resource=[
+                            Sub(f'${{{artifact_bucket.title}.Arn}}/*')
+                        ],
                         Effect=Allow,
                         Action=[
                             awacs.s3.GetBucketVersioning,

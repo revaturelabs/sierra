@@ -7,9 +7,13 @@
     "CALIBER_EUREKA_SERVER_URL": "http://{ENDPOINT}:8761/eureka/"
   },
   "default": {
-    "git": {
-      "github-user": "goeppes",
-      "github-branch": "master"
+    "container": {
+      "cpu": 256,
+      "memory": 512
+    },
+    "pipeline": {
+      "user": "goeppes",
+      "branch": "master"
     },
     "environment": [
       "CALIBER_CONFIG_SERVER_URL",
@@ -18,12 +22,12 @@
   },
   "services": {
     "CaliberConfig": {
-      "docker": {
+      "container": {
         "image": "revaturesierra/caliber-config",
         "port": 8888
       },
-      "git": {
-        "github-repo": "revaturelabs/caliber-config"
+      "pipeline": {
+        "repo": "revaturelabs/caliber-config"
       },
       "environment": [
         "CALIBER_CONFIG_GIT_URI",
@@ -32,42 +36,42 @@
       ]
     },
     "CaliberEureka": {
-      "docker": {
+      "container": {
         "image": "revaturesierra/caliber-eureka",
         "port": 8761
       },
-      "git": {
-        "github-repo": "revaturelabs/caliber-eureka"
+      "pipeline": {
+        "repo": "revaturelabs/caliber-eureka"
       },
       "environment": [
         "CALIBER_CONFIG_SERVER_URL"
       ]
     },
     "CaliberZuul": {
-      "docker": {
+      "container": {
         "image": "revaturesierra/caliber-zuul",
         "port": 9999
       },
-      "git": {
-        "github-repo": "revaturelabs/caliber-zuul"
+      "pipeline": {
+        "repo": "revaturelabs/caliber-zuul"
       }
     },
     "CaliberTrainingService": {
-      "docker": {
+      "container": {
         "image": "revaturesierra/caliber-training-service",
         "port": 9898
       },
-      "git": {
-        "github-repo": "revaturelabs/caliber-training-service"
+      "pipeline": {
+        "repo": "revaturelabs/caliber-training-service"
       }
     },
     "CaliberDocumentService": {
-      "docker": {
+      "container": {
         "image": "revaturesierra/caliber-document-service",
         "port": 9000
       },
-      "git": {
-        "github-repo": "revaturelabs/caliber-document-service"
+      "pipeline": {
+        "repo": "revaturelabs/caliber-document-service"
       }
     }
   }
