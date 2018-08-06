@@ -93,5 +93,5 @@ def inject(template, name, container_settings,
     ))
 
     return AttrDict(
-        service=Ref(service),
+        service=service,
     )
