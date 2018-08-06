@@ -121,7 +121,3 @@ def inject(template, vpc, subnets, imageId, instanceType, keyName, clusterSize):
             )
         )
     ))
-
-t = Template()
-inject(t, 'vpc', 'subnets', 'imageId', 'instanceType', 'keyName', 'clusterSize')
-print(t.to_yaml())
