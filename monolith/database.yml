@@ -216,9 +216,7 @@ Resources:
             echo 'export PATH' >> /home/ec2-user/.bash_profile
             echo 'export ORACLE_HOME' >> /home/ec2-user/.bash_profile
             echo 'export LD_LIBRARY_PATH' >> /home/ec2-user/.bash_profile
-            aws s3 cp s3://${Bucket}/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
-            aws s3 cp s3://${Bucket}/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm /home/ec2-user/
-            aws s3 cp s3://${Bucket}/db_init/schema-generator.sql /home/ec2-user/
+            aws s3 sync s3://${Bucket} /home/ec2-user/
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
             . /home/ec2-user/.bash_profile
