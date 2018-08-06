@@ -5,7 +5,7 @@ Metadata:
   AWS::CloudFormation::Interface: 
     ParameterGroups:
       - Label: 
-          default: "Create a database (Leave empty if DB exists)"
+          default: "Create a database (Leave defaults if DB exists)"
         Parameters: 
           - DBInstanceName
           - DBInstanceType
@@ -13,7 +13,6 @@ Metadata:
           - DBStorageSize
           - DBMultiAZ
           - DBSecurityGroup
-          - OracleBucketName
       - Label: 
           default: "Use an existing database"
         Parameters: 
@@ -23,17 +22,24 @@ Metadata:
         Parameters: 
           - DBUsername
           - DBPassword
+          - DBPort
+          - DBService
+          - ResourcesBucket
+          
 Parameters:
   ExistingDBInstanceName:
     Type: String
     Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
   DBInstanceName:
     Type: String
-    Description: New database instance name. Case insensitive, but stored as all lower-case. (1-63 alphanumeric, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
+    Description: New database instance name. (1-63 alphanumeric, all lowercase, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
     MinLength: 1
     MaxLength: 63
-    Default: SierraRDS
-    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    Default: sierra-rds
+    AllowedPattern: "[a-z0-9-]*"
   DBUsername:
     Type: String
     Description: Enter a valid Database username. (1-30 alphanumeric)
@@ -54,6 +60,18 @@ Parameters:
     MinLength: 8
     MaxLength: 30
     AllowedPattern: "[a-zA-Z0-9]*"    
+  DBPort:
+    Type: Number
+    Description: Enter the port used in the database URL. Defaults to port 1521 for Oracle databases.
+    Default: 1521
+    MinValue: 1
+    MaxValue: 65535
+  DBService:
+    Type: String
+    Description: Enter the service used in the database URL. (xe, ORCL...)
+    Default: ORCL
+    MinLength: 0
+    MaxLength: 30
   DBInstanceType:
     Type: String
     Description: Enter one of the possible instance types for database.
@@ -107,9 +125,9 @@ Parameters:
     Default: 10
     MinValue: 10
     MaxValue: 16384
-  OracleBucketName:
+  ResourcesBucket:
     Type: String
-    Description: Enter the name of the S3 bucket with the Oracle drivers listed in the repository setup instructions. Also holds initial SQL script.
+    Description: Enter the name of the S3 bucket with application-specific resources uploaded by the user. (RPMs for database client, startup SQL script...)
 Resources:
   # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
@@ -121,8 +139,8 @@ Resources:
       GroupDescription: Security group for Sierra RDS backend
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 1521
-          ToPort: 1521
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
           CidrIp: 0.0.0.0/0
   # Create the Oracle RDS
   SierraRDS:
@@ -224,17 +242,17 @@ Resources:
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
             . /home/ec2-user/.bash_profile
-            echo ${Endpoint} ${Username} ${Password} ${Port} ${Provider} > /home/ec2-user/debugme
-            echo exit | /usr/lib/oracle/12.1/client64/bin/sqlplus  '${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Provider})))' @/home/ec2-user/schema-generator.sql
+            echo ${Endpoint} ${Username} ${Password} ${Port} ${Service} > /home/ec2-user/debugme
+            echo exit | /usr/lib/oracle/12.1/client64/bin/sqlplus  '${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Service})))' @/home/ec2-user/schema-generator.sql
             echo "We did it!" >> /home/ec2-user/helpme
             # shutdown -h now
           - {
             Endpoint: !GetAtt SierraRDS.Endpoint.Address,
             Username: !Ref DBUsername,
             Password: !Ref DBPassword,
-            Bucket: !Ref OracleBucketName,
-            Port: '1521',
-            Provider: ORCL
+            Bucket: !Ref ResourcesBucket,
+            Port: !Ref DBPort,
+            Service: !Ref DBService
             }
   # Create Oracle client security group
   OracleClientSG:
@@ -248,24 +266,34 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
-          FromPort: 1521
-          ToPort: 1521
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
           CidrIp: 0.0.0.0/0
         
 # Export values to other templates:
 Outputs:
-  SierraRDSEndpoint:
-    Description: Database endpoint
+  DatabaseURL:
+    Description: Database URL
     Value: !Sub
-      - "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
+      - "jdbc:oracle:thin:${Endpoint}:${Port}:${Service}"
       - {
         Endpoint: !GetAtt SierraRDS.Endpoint.Address,
-        Username: !Ref DBUsername,
-        Password: !Ref DBPassword,
-        Port: 1521,
-        Provider: ORCL
+        Port: !Ref DBPort,
+        Service: !Ref DBService
         }
-
+  DBUsername:
+    Description: Database username
+    Value: !Ref DBUsername
+  DBPassword:
+    Description: Database password
+    Value: !Ref DBPassword
+  DBInstanceName:
+    Description: Database instance name
+    Value: !Ref DBInstanceName
+  ResourcesBucket:
+    Description: Bucket with user-uploaded resources
+    Value: !Ref ResourcesBucket
+    
 Conditions:
   # Create new database if there is no existing database
   CreatingNewDB: !Equals [!Ref ExistingDBInstanceName, ""]
