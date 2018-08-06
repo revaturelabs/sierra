@@ -60,9 +60,13 @@ Parameters:
     Default: db.t2.micro
     AllowedValues:
       - db.t2.micro
-      - db.t2.small
-      - db.t2.medium
       - db.t2.large
+      - db.m3.medium
+      - db.m3.2xlarge
+      - db.m4.large
+      - db.m4.16xlarge
+      - db.r4.large	
+      - db.r4.16xlarge
   DBSecurityGroup:
     Type: String
     Description: Name for a new database security group.
@@ -105,7 +109,7 @@ Parameters:
     MaxValue: 16384
   OracleBucketName:
     Type: String
-    Description: Enter the name of the S3 bucket with the Oracle drivers listed in the repository setup instructions.
+    Description: Enter the name of the S3 bucket with the Oracle drivers listed in the repository setup instructions. Also holds initial SQL script.
 Resources:
   # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
@@ -221,7 +225,7 @@ Resources:
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
             . /home/ec2-user/.bash_profile
             echo ${Endpoint} ${Username} ${Password} ${Port} ${Provider} > /home/ec2-user/debugme
-            echo "start /home/ec2-user/schema-generator.sql;" | /usr/lib/oracle/12.1/client64/bin/sqlplus ${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Provider})))
+            echo exit | /usr/lib/oracle/12.1/client64/bin/sqlplus  '${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Provider})))' @/home/ec2-user/schema-generator.sql
             echo "We did it!" >> /home/ec2-user/helpme
             # shutdown -h now
           - {
@@ -249,18 +253,18 @@ Resources:
           CidrIp: 0.0.0.0/0
         
 # Export values to other templates:
-# Outputs:
-  # SierraRDSEndpoint:
-    # Description: Database endpoint
-    # Value: !Sub
-      # - "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
-      # - {
-        # Endpoint: !GetAtt SierraRDS.Endpoint.Address
-        # Username: !Ref DBUsername
-        # Password: !Ref DBPassword
-        # Port: 1521
-        # Provider: ORCL
-        # }
+Outputs:
+  SierraRDSEndpoint:
+    Description: Database endpoint
+    Value: !Sub
+      - "${SierraRDS.Endpoint.Address}:${SierraRDS.Endpoint.Port}"
+      - {
+        Endpoint: !GetAtt SierraRDS.Endpoint.Address
+        Username: !Ref DBUsername
+        Password: !Ref DBPassword
+        Port: 1521
+        Provider: ORCL
+        }
 
 Conditions:
   # Create new database if there is no existing database
