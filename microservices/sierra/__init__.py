@@ -137,12 +137,12 @@ def build_template(sierrafile):
         cluster_size=template.add_parameter(Parameter(
             'ClusterSize',
             Type='Number',
-            Default=1,
+            Default=2,
         )),
         instance_type=template.add_parameter(Parameter(
             'InstanceType',
             Type='String',
-            Default='t2.small'
+            Default='t2.medium'
         )),
         key_name=template.add_parameter(Parameter(
             'KeyName',
@@ -220,7 +220,7 @@ def build_template(sierrafile):
             env_vars={
                 k: v
                 for k, v in sierrafile.env_vars.items()
-                if k in settings.environment
+                if k in settings.get('environment', [])
             },
         )
 

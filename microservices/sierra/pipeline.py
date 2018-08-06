@@ -167,7 +167,7 @@ def inject(template, name, settings, github_token, cluster, service):
                         'Owner': settings.user,
                         'Repo': settings.repo,
                         'Branch': settings.branch,
-                        'OAuthToken': Ref(github_token),
+                        'OAuthToken': github_token,
                     },
                 )],
             ),
@@ -216,11 +216,11 @@ def inject(template, name, settings, github_token, cluster, service):
         Name=f'{name}-webhook',
         Authentication='GITHUB_HMAC',
         AuthenticationConfiguration=AuthenticationConfiguration(
-            SecretToken=Ref(github_token),
+            SecretToken=github_token,
         ),
         Filters=[FilterRule(
             JsonPath='$.ref',
-            MatchEquals=Sub(f'refs/heads/${{{settings.branch}}}')
+            MatchEquals=f'refs/heads/{settings.branch}'
         )],
         TargetAction='Source',
         TargetPipeline=Ref(pipeline),
