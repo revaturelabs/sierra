@@ -7,6 +7,10 @@
     "CALIBER_EUREKA_SERVER_URL": "http://{ENDPOINT}:8761/eureka/"
   },
   "default": {
+    "container": {
+      "cpu": 256,
+      "memory": 512
+    },
     "pipeline": {
       "user": "goeppes",
       "branch": "master"

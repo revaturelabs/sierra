@@ -1,10 +1,11 @@
-from troposphere import GetAtt, Ref, Sub
+from troposphere import GetAtt, Join, Ref, Sub
 from troposphere import Parameter, Template
 from troposphere.cloudformation import Stack
 
 import sierra.elb
 import sierra.network
 import sierra.pipeline
+import sierra.service
 
 from .elb import ELB_NAME
 from .utils import AttrDict
@@ -91,6 +92,8 @@ def build_interface(env_vars):
 def build_template(sierrafile):
     template = Template()
 
+    template.add_version('2010-09-09')
+
     template.add_metadata(build_interface(sierrafile.extra_params))
 
     parameters = AttrDict(
@@ -171,7 +174,10 @@ def build_template(sierrafile):
         subnet2_cidr=Ref(parameters.subnet2_cidr),
     )
 
-    elb = sierra.elb.inject(template, network)
+    elb = sierra.elb.inject(template, network, [
+        settings.container.port
+        for service_name, settings in sierrafile.services.items()
+    ])
 
     # Resources
 
@@ -182,25 +188,25 @@ def build_template(sierrafile):
             'ClusterSize': Ref(parameters.cluster_size),
             'InstanceType': Ref(parameters.instance_type),
             'KeyName': Ref(parameters.key_name),
-            'SourceSecurityGroup': elb.security_group,
-            'Subnets': network.subnets,
+            'Subnets': Join(',', network.subnets),
             'VPC': network.vpc,
         }
     ))
 
-    for name, service in sierrafile['services'].items():
-        template.add_resource(Stack(
-            name + 'Service',
-            TemplateURL=template_url('ecs-service.yml'),
-            Parameters={
-                'ContainerName': name + '-container',
-                'ContainerImage': service.container.image,
-                'ContainerPort': service.container.port,
-                'ServiceName': name + '-service',
-                'Cluster': GetAtt(cluster, 'Outputs.ClusterName'),
-                'TargetGroup': elb.target_group,
-            }
-        ))
+    for name, settings in sierrafile.services.items():
+        sierra.service.inject(
+            template,
+            name=name,
+            container_settings=settings.container,
+            cluster=GetAtt(cluster, 'Outputs.ClusterName'),
+            elb=elb,
+            network=network,
+            env_vars={
+                k: v
+                for k, v in sierrafile.env_vars.items()
+                if k in settings.environment
+            },
+        )
 
 #        template.add_resource(Stack(
 #            service['name'] + 'Pipeline',
