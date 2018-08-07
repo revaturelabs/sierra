@@ -9,7 +9,7 @@
   "default": {
     "container": {
       "cpu": 256,
-      "memory": 512
+      "memory": 1024
     },
     "environment": [
       "CALIBER_CONFIG_SERVER_URL",

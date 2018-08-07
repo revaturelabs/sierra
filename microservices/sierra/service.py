@@ -12,7 +12,7 @@ from .utils import AttrDict
 
 
 def inject(template, name, container_settings,
-           cluster, elb, network, env_vars):
+           cluster, elb, vpc, env_vars):
     """Pass in a template to which these resources should be added, and a
     dictionary of environment variables.
     """
@@ -63,12 +63,12 @@ def inject(template, name, container_settings,
         Name=f'tg-{name}'[:32],
         Port=container_settings.port,
         Protocol='TCP',
-        VpcId=network.vpc,
+        VpcId=Ref(vpc),
     ))
 
-    template.add_resource(Listener(
+    listener = template.add_resource(Listener(
         f'{name}ElbListener',
-        LoadBalancerArn=elb.load_balancer,
+        LoadBalancerArn=Ref(elb),
         Port=container_settings.port,
         Protocol='TCP',
         DefaultActions=[
@@ -80,7 +80,8 @@ def inject(template, name, container_settings,
         f'{name}Service',
         Cluster=cluster,
         ServiceName=f'{name}-service',
-        DesiredCount=1,
+        DependsOn=[listener.title],
+        DesiredCount=container_settings.count,
         TaskDefinition=Ref(task_definition),
         LaunchType='EC2',
         LoadBalancers=[
