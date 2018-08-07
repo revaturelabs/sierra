@@ -19,13 +19,15 @@ from troposphere.ec2 import (
     InternetGateway, Route, RouteTable, SecurityGroup, SecurityGroupRule,
     Subnet, SubnetRouteTableAssociation, VPC, VPCGatewayAttachment)
 from troposphere.ecs import (
-    Cluster, ContainerDefinition, Service, TaskDefinition, PortMapping)
+    Cluster, ContainerDefinition, Service, TaskDefinition,
+    PortMapping, LogConfiguration)
 from troposphere.elasticloadbalancingv2 import (
     Action, Listener, LoadBalancer, TargetGroup)
 from troposphere.policies import (
     CreationPolicy, UpdatePolicy, ResourceSignal, AutoScalingRollingUpdate)
 from troposphere.iam import InstanceProfile, Policy, Role
 from troposphere.s3 import Bucket
+from troposphere.logs import LogGroup
 
 from .utils import AttrDict
 from .webhook import AuthenticationConfiguration, FilterRule, Webhook
@@ -538,6 +540,11 @@ def build_template(sierrafile):
         )],
     ))
 
+    log_group = template.add_resource(LogGroup(
+        'LogGroup',
+        LogGroupName=Sub('/ecs/${AWS::StackName}'),
+    ))
+
     for name, settings in sierrafile.services.items():
         task_definition = template.add_resource(TaskDefinition(
             f'{name}TaskDefinition',
@@ -563,6 +570,14 @@ def build_template(sierrafile):
                         for k, v in sierrafile.env_vars.items()
                         if k in settings.get('environment', [])
                     ],
+                    LogConfiguration=LogConfiguration(
+                        LogDriver='awslogs',
+                        Options={
+                            'awslogs-region': Ref('AWS::Region'),
+                            'awslogs-group': Ref(log_group.title),
+                            'awslogs-stream-prefix': Ref('AWS::StackName'),
+                        },
+                    ),
                 ),
             ],
         ))
