@@ -10,7 +10,7 @@ Parameters:
   KeyName:
     Type: 'AWS::EC2::KeyPair::KeyName'
 
-  # Uncomment the following lines for dynamic parameter options, and update the "Resources" field to reflect these changes.
+  # Uncomment the following lines as desired for dynamic parameter options, and update the "Resources" field to reflect these changes.
 
   # InstanceName:
   #   Description: Name for your Jenkins server
