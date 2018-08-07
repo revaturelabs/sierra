@@ -1,0 +1,14 @@
+version: 0.2
+
+phases:
+    install:
+        commands:
+            - aws s3 cp s3://steve-jars/ojdbc6.jar .
+            - mvn install:install-file -Dfile="ojdbc6.jar" -DgroupId="com.oracle" -DartifactId="ojdbc6" -Dversion="11.2.0" -Dpackaging="jar"
+    build:
+        commands:
+            - mvn clean package -Dmaven.test.failure.ignore=true -f caliber/pom.xml
+artifacts:
+    files:
+        - caliber/target/caliber.war
+    discard-paths: yes

@@ -3,10 +3,10 @@
 block_cipher = None
 
 
-a = Analysis(['sierra.py'],
+a = Analysis(['sierra/__main__.py'],
              pathex=[],
              binaries=[],
-             datas=[('templates/*', 'templates')],
+             datas=[],
              hiddenimports=['troposphere'],
              hookspath=[],
              runtime_hooks=[],

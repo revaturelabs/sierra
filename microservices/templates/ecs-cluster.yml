@@ -27,9 +27,6 @@ Parameters:
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
 
-  SourceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup::Id
-
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
 
@@ -65,7 +62,7 @@ Resources:
       GroupDescription: !Sub ${AWS::StackName}-hosts
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - SourceSecurityGroupId: !Ref SourceSecurityGroup
+        - CidrIp: 0.0.0.0/0
           IpProtocol: -1
 
   Cluster:

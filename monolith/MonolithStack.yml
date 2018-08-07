@@ -5,7 +5,7 @@ AWSTemplateFormatVersion: 2010-09-09
 Parameters:
   TemplatePath:
     Type: String
-    Description: S3Bucket where the templates are stored
+    Description: S3Bucket where the templates are stored.
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Enter a valid KeyPair Name
@@ -34,20 +34,29 @@ Parameters:
       - db.t2.small
       - db.t2.medium
       - db.t2.large
-  WebInstanceType:
-    Type: String
-    Description: Enter one of the possible instance type for web server
-    AllowedValues:
-      - t2.micro
-      - t2.large
-      - m4.large
-      - c4.large
+  # WebInstanceType:
+  #   Type: String
+  #   Description: Enter one of the possible instance type for web server
+  #   AllowedValues:
+  #     - t2.micro
+  #     - t2.large
+  #     - m4.large
+  #     - c4.large
   WebMinSize:
     Type: String
     Description: Minimum number of instances in auto scaling group
   WebMaxSize:
     Type: String
     Description: Maximum number of instances in auto scaling group
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+  GitHubToken:
+    Type: String
+    NoEcho: true
+  GitHubUser:
+    Type: String
   # Environment:
   #   Type: String
   #   Description: Select the appropriate environment
@@ -75,42 +84,28 @@ Resources:
         - Key: Name
           Value: DatabaseStack
 #Server Stack
-  # ServerStack:
-  #   Type: "AWS::CloudFormation::Stack"
-  #   Properties:
-  #     TemplateURL:
-  #       Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/server.yml"
-  #     Parameters: {}
-  #     Tags:
-  #       - Key: Name
-  #         Value: ServerStack
-#Network stack          
-  NetworkStack:
+  ServerStack:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/network.yml"
-      Parameters:
-        KeyPair:
+        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/pipeline.yml"
+      Parameters: 
+        ArtifactStoreS3Location:
+          Ref: TemplatePath
+        GitHubUser:
+          Ref: GitHubUser
+        GitHubToken:
+          Ref: GitHubToken
+        GitHubRepo:
+          Ref: GitHubRepo
+        GitHubBranch:
+          Ref: GitHubBranch
+        KeyName:
           Ref: KeyPair
-        WebInstanceType:
-          Ref: WebInstanceType
         WebMinSize:
           Ref: WebMinSize
         WebMaxSize:
           Ref: WebMaxSize
       Tags:
         - Key: Name
-          Value: NetworkStack
-#Jenkins Stack
-  JenkinsStack:
-    Type: "AWS::CloudFormation::Stack"
-    Properties:
-      TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/jenkins-launch-monolith-manual.yml"
-      Parameters:
-        KeyName:
-          Ref: KeyPair
-      Tags:
-        - Key: Name
-          Value: JenkinsStack
+          Value: ServerStack
