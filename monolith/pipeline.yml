@@ -3,7 +3,7 @@ Description: Create a CodePipeline to include Nested CloudFormation, CodeBuild a
 Parameters:
   ArtifactStoreS3Location:
     Type: String
-    Description: Name of the S3 bucket to store CodePipeline artificat.
+    Description: Name of the S3 bucket to store CodePipeline artifact.
   GitHubRepo:
     Type: String
   GitHubBranch:
@@ -13,6 +13,15 @@ Parameters:
     NoEcho: true
   GitHubUser:
     Type: String
+  KeyName:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Choose a valid KeyPair.
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group
 
 Resources:
   CodeBuildRole:
@@ -170,7 +179,7 @@ Resources:
       TimeoutInMinutes: 15
       Tags:
         - Key: Name
-          Value: TestBuild
+          Value: Build
   DeployPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
@@ -223,76 +232,47 @@ Resources:
               Owner: AWS 
               Version: 1 
               Provider: ElasticBeanstalk
+              # Provider: S3
             InputArtifacts:
-            - Name: BuildOut
+              - Name: BuildOut
             Configuration:
+              # ApplicationName: !Ref DeploymentApplication
+              # DeploymentGroupName: !Ref DeploymentGroup
               ApplicationName: !Ref Application
               EnvironmentName: !Ref TomcatEnvironment
-  # DeploymentApplication:
-  #   Type: AWS::CodeDeploy::Application
-  #   Properties:
-  #     ApplicationName: Sierra    
-  #     ComputePlatform: Server
-  # DeploymentGroup: 
-  #   Type: AWS::CodeDeploy::DeploymentGroup
-  #   Properties: 
-  #     ApplicationName: 
-  #       Ref: DeploymentApplication
-  #     Ec2TagFilters:
-  #       - Key: DeploymentGroup
-  #         Type: KEY_AND_VALUE
-  #         Value: !Ref AWS::StackName
-  #     ServiceRoleArn: 
-  #       Fn::GetAtt: [ CodeDeployRole, Arn ]
-  # CodeDeployRole:
-  #   Type: AWS::IAM::Role
-  #   Properties: 
-  #       Path: /
-  #       RoleName: !Sub ${DeploymentApplication}-CodeDeploy-${AWS::Region}
-  #       AssumeRolePolicyDocument: |
-  #           {
-  #               "Statement": [{
-  #                   "Action": "sts:AssumeRole",
-  #                   "Effect": "Allow",
-  #                   "Principal": { 
-  #                       "Service": "codedeploy.amazonaws.com" 
-  #                   }
-  #               }]
-  #           }
-  #       Policies: 
-  #           - PolicyName: !Sub ${AWS::StackName}-${AWS::Region}
-  #             PolicyDocument: !Sub |
-  #               {
-  #                   "Version": "2012-10-17",
-  #                   "Statement": [
-  #                       {
-  #                       "Effect": "Allow",
-  #                       "Action": [
-  #                           "autoscaling:*",
-  #                           "ec2:*",
-  #                           "tag:GetTags",
-  #                           "tag:GetResources",
-  #                           "sns:Publish",
-  #                           "cloudwatch:DescribeAlarms"
-  #                       ],
-  #                       "Resource": "*"
-  #                       }
-  #                   ]
-  #               }
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: Tomcat SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+      # VpcId: !Ref VPC
   Application:
    Type: AWS::ElasticBeanstalk::Application
    Properties:
      Description: AWS Elastic Beanstalk Sample Application
 
-  ApplicationVersion:
-   Type: AWS::ElasticBeanstalk::ApplicationVersion
-   Properties:
-     ApplicationName:
-       Ref: Application
-     Description: AWS ElasticBeanstalk Sample Application Version
-     SourceBundle:
-       S3Bucket: !Ref ArtifactStoreS3Location
-       S3Key: caliber.war
+  # ApplicationVersion:
+  #  Type: AWS::ElasticBeanstalk::ApplicationVersion
+  #  Properties:
+  #    ApplicationName:
+  #      Ref: Application
+  #    Description: AWS ElasticBeanstalk Sample Application Version
+  #    SourceBundle:
+  #      S3Bucket: !Ref ArtifactStoreS3Location
+  #      S3Key: caliber.war
+
   AppConfigurationTemplate:
    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
    Properties:
@@ -300,18 +280,64 @@ Resources:
        Ref: Application
      Description: AWS ElasticBeanstalk Sample Configuration Template
      OptionSettings:
-     - Namespace: aws:autoscaling:asg
-       OptionName: MinSize
-       Value: '2'
-     - Namespace: aws:autoscaling:asg
-       OptionName: MaxSize
-       Value: '6'
-     - Namespace: aws:elasticbeanstalk:environment
-       OptionName: EnvironmentType
-       Value: LoadBalanced
-    #  - Namespace: aws:autoscaling:launchconfiguration
-    #    OptionName: EC2KeyName
-    #    Value: Keyname
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: SALESFORCE_CLIENT_ID
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: SALESFORCE_CLIENT_SECRET
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_API_USERNAME
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_API_PASSWORD
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_API_SERVER
+    #     Value: http://localhost:2100/
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: JAVA_HOME
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_DB_URL
+    #     Value: jdbc:oracle:thin:(DB_SERVER):1521:xe
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_DB_USER
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_DB_PASS
+    #     Value: (VALUE)
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: CALIBER_PROJECT_URL
+        Value: http://localhost:8080/caliber/
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: CALIBER_SERVER_URL
+        Value: http://localhost:8080/
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: CALIBER_DEV_MODE
+        Value: true
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_EMAIL_USERNAME
+    #     Value: (VALUE)
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: CALIBER_EMAIL_PASS
+    #     Value: (VALUE)
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: SecurityGroups
+        Value:
+          Ref: WebAppSecurityGroup
+      - Namespace: aws:autoscaling:asg
+        OptionName: MinSize
+        Value: !Ref WebMinSize
+      - Namespace: aws:autoscaling:asg
+        OptionName: MaxSize
+        Value: !Ref WebMaxSize
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: LoadBalanced
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName
+        Value: !Ref KeyName
      SolutionStackName: 64bit Amazon Linux 2018.03 v3.0.1 running Tomcat 8 Java 8
      
   TomcatEnvironment:
@@ -322,5 +348,5 @@ Resources:
      Description: AWS ElasticBeanstalk Sample Environment
      TemplateName:
        Ref: AppConfigurationTemplate
-     VersionLabel:
-       Ref: ApplicationVersion
+    #  VersionLabel:
+    #    Ref: ApplicationVersion
