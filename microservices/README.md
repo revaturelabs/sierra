@@ -2,7 +2,7 @@
 
 > CloudFormation template generator for microservices
 
-Put basic description here.
+Sierra Microservices is a CloudFormation template that provisions and allocates in proportion to the project specifications. Sierra Microservices runs a pythons script that creates a master template for CloudFormation to provision everything that is needed for your architecture. The microservices template should also be configured to continuous integrate. After the architecture is created all that is needed to be done is pushing a change and the template should handle the rest.
 
 ## Requirements
 
