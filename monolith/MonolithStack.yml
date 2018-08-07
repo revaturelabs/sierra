@@ -156,6 +156,8 @@ Resources:
       TemplateURL:
         Fn::Sub: "https://s3.amazonaws.com/${ResourceBucket}/monolith/database.yml"
       Parameters:
+        ResourcesBucket:
+          Ref: ResourceBucket
         DBUsername:
           Ref: DBUsername
         DBPassword:
