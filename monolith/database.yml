@@ -131,14 +131,37 @@ Parameters:
 # Default AMI IDs for the EC2, TODO: add more regions
 Mappings:
   RegionToImageId:
-    us-east-1:
-      ImageId: ami-b70554c8
-    us-east-2:
-      ImageId: ami-8c122be9
-    us-west-1:
-      ImageId: ami-e0ba5c83
-    us-west-2:
-      ImageId: ami-a9d09ed1
+    'ap-south-1':
+      ImageId: 'ami-d783a9b8'
+    'eu-west-3':
+      ImageId: 'ami-2cf54551'
+    'eu-west-2':
+      ImageId: 'ami-b8b45ddf'
+    'eu-west-1':
+      ImageId: 'ami-466768ac'
+    'ap-northeast-2':
+      ImageId: 'ami-afd86dc1'
+    'ap-northeast-1':
+      ImageId: 'ami-e99f4896'
+    'sa-east-1':
+      ImageId: 'ami-6dca9001'
+    'ca-central-1':
+      ImageId: 'ami-0ee86a6a'
+    'ap-southeast-1':
+      ImageId: 'ami-05868579'
+    'ap-southeast-2':
+      ImageId: 'ami-39f8215b'
+    'eu-central-1':
+      ImageId: 'ami-7c4f7097'
+    'us-east-1':
+      ImageId: 'ami-b70554c8'
+    'us-east-2':
+      ImageId: 'ami-8c122be9'
+    'us-west-1':
+      ImageId: 'ami-e0ba5c83'
+    'us-west-2':
+      ImageId: 'ami-a9d09ed1'
+
 Resources:
   # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
