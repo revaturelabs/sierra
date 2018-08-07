@@ -1,21 +1,34 @@
+import awacs.codebuild
+import awacs.ecs
+import awacs.iam
+import awacs.logs
+import awacs.s3
+import awacs.ssm
 import awacs.sts
+import troposphere.ecs
+
 from awacs.aws import Allow, PolicyDocument, Statement, Principal
-from troposphere import Base64, GetAZs, Ref, Select, Sub, Tags
+from troposphere import Base64, GetAZs, GetAtt, Ref, Select, Sub, Tags
 from troposphere import Parameter, Template
 from troposphere.autoscaling import AutoScalingGroup, LaunchConfiguration
+from troposphere.codebuild import Artifacts, Environment, Project, Source
+from troposphere.codepipeline import (
+    Actions, ActionTypeId, ArtifactStore, InputArtifacts,
+    OutputArtifacts, Pipeline, Stages)
 from troposphere.ec2 import (
     InternetGateway, Route, RouteTable, SecurityGroup, SecurityGroupRule,
     Subnet, SubnetRouteTableAssociation, VPC, VPCGatewayAttachment)
-from troposphere.ecs import Cluster
-from troposphere.elasticloadbalancingv2 import LoadBalancer
+from troposphere.ecs import (
+    Cluster, ContainerDefinition, Service, TaskDefinition, PortMapping)
+from troposphere.elasticloadbalancingv2 import (
+    Action, Listener, LoadBalancer, TargetGroup)
 from troposphere.policies import (
     CreationPolicy, UpdatePolicy, ResourceSignal, AutoScalingRollingUpdate)
-from troposphere.iam import InstanceProfile, Role
-
-import sierra.pipeline
-import sierra.service
+from troposphere.iam import InstanceProfile, Policy, Role
+from troposphere.s3 import Bucket
 
 from .utils import AttrDict
+from .webhook import AuthenticationConfiguration, FilterRule, Webhook
 
 
 ELB_NAME = 'ElbLoadBalancer'
@@ -372,7 +385,7 @@ def build_template(sierrafile):
         }
     ))
 
-    template.add_resource(AutoScalingGroup(
+    autoscaling_group = template.add_resource(AutoScalingGroup(
         autoscaling_name,
         VPCZoneIdentifier=[Ref(subnet1), Ref(subnet2)],
         LaunchConfigurationName=Ref(launch_conf),
@@ -399,29 +412,301 @@ def build_template(sierrafile):
 
     # # Services
 
+    task_role = template.add_resource(Role(
+        'TaskExecutionRole',
+        AssumeRolePolicyDocument=PolicyDocument(
+            Statement=[Statement(
+                Effect=Allow,
+                Principal=Principal('Service', 'ecs-tasks.amazonaws.com'),
+                Action=[awacs.sts.AssumeRole],
+            )],
+        ),
+        ManagedPolicyArns=[
+            'arn:aws:iam::aws:policy/'
+            'service-role/AmazonECSTaskExecutionRolePolicy'
+        ],
+    ))
+
+    artifact_bucket = template.add_resource(Bucket(
+        'ArtifactBucket',
+        DeletionPolicy='Retain'
+    ))
+
+    codebuild_role = template.add_resource(Role(
+        'CodeBuildServiceRole',
+        Path='/',
+        AssumeRolePolicyDocument=PolicyDocument(
+            Version='2012-10-17',
+            Statement=[
+                Statement(
+                    Effect=Allow,
+                    Principal=Principal(
+                        'Service', 'codebuild.amazonaws.com'
+                    ),
+                    Action=[
+                        awacs.sts.AssumeRole,
+                    ],
+                ),
+            ],
+        ),
+        Policies=[Policy(
+            PolicyName='root',
+            PolicyDocument=PolicyDocument(
+                Version='2012-10-17',
+                Statement=[
+                    Statement(
+                        Resource=['*'],
+                        Effect=Allow,
+                        Action=[
+                            awacs.ssm.GetParameters,
+                        ],
+                    ),
+                    Statement(
+                        Resource=['*'],
+                        Effect=Allow,
+                        Action=[
+                            awacs.s3.GetObject,
+                            awacs.s3.PutObject,
+                            awacs.s3.GetObjectVersion,
+                        ],
+                    ),
+                    Statement(
+                        Resource=['*'],
+                        Effect=Allow,
+                        Action=[
+                            awacs.logs.CreateLogGroup,
+                            awacs.logs.CreateLogStream,
+                            awacs.logs.PutLogEvents,
+                        ],
+                    ),
+                ],
+            ),
+        )],
+    ))
+
+    codepipeline_role = template.add_resource(Role(
+        'CodePipelineServiceRole',
+        Path='/',
+        AssumeRolePolicyDocument=PolicyDocument(
+            Version='2012-10-17',
+            Statement=[
+                Statement(
+                    Effect=Allow,
+                    Principal=Principal(
+                        'Service', 'codepipeline.amazonaws.com'
+                    ),
+                    Action=[
+                        awacs.sts.AssumeRole,
+                    ],
+                ),
+            ],
+        ),
+        Policies=[Policy(
+            PolicyName='root',
+            PolicyDocument=PolicyDocument(
+                Version='2012-10-17',
+                Statement=[
+                    Statement(
+                        Resource=[
+                            Sub(f'${{{artifact_bucket.title}.Arn}}/*')
+                        ],
+                        Effect=Allow,
+                        Action=[
+                            awacs.s3.GetBucketVersioning,
+                            awacs.s3.GetObject,
+                            awacs.s3.GetObjectVersion,
+                            awacs.s3.PutObject,
+                        ],
+                    ),
+                    Statement(
+                        Resource=['*'],
+                        Effect=Allow,
+                        Action=[
+                            awacs.ecs.DescribeServices,
+                            awacs.ecs.DescribeTaskDefinition,
+                            awacs.ecs.DescribeTasks,
+                            awacs.ecs.ListTasks,
+                            awacs.ecs.RegisterTaskDefinition,
+                            awacs.ecs.UpdateService,
+                            awacs.codebuild.StartBuild,
+                            awacs.codebuild.BatchGetBuilds,
+                            awacs.iam.PassRole,
+                        ],
+                    ),
+                ],
+            ),
+        )],
+    ))
+
     for name, settings in sierrafile.services.items():
-        service = sierra.service.inject(
-            template,
-            name=name,
-            container_settings=settings.container,
-            cluster=Ref(cluster),
-            elb=elb,
-            vpc=network_vpc,
-            env_vars={
-                k: v
-                for k, v in sierrafile.env_vars.items()
-                if k in settings.get('environment', [])
-            },
-        )
+        task_definition = template.add_resource(TaskDefinition(
+            f'{name}TaskDefinition',
+            RequiresCompatibilities=['EC2'],
+            Cpu=str(settings.container.cpu),
+            Memory=str(settings.container.memory),
+            NetworkMode='bridge',
+            ExecutionRoleArn=Ref(task_role.title),
+            ContainerDefinitions=[
+                ContainerDefinition(
+                    Name=f'{name}',
+                    Image=settings.container.image,
+                    Memory=str(settings.container.memory),
+                    Essential=True,
+                    PortMappings=[
+                        PortMapping(
+                            ContainerPort=settings.container.port,
+                            Protocol='tcp',
+                        ),
+                    ],
+                    Environment=[
+                        troposphere.ecs.Environment(Name=k, Value=v)
+                        for k, v in sierrafile.env_vars.items()
+                        if k in settings.get('environment', [])
+                    ],
+                ),
+            ],
+        ))
+
+        target_group = template.add_resource(TargetGroup(
+            f'{name}TargetGroup',
+            Name=f'tg-{name}'[:32],
+            Port=settings.container.port,
+            Protocol='TCP',
+            VpcId=Ref(network_vpc),
+        ))
+
+        listener = template.add_resource(Listener(
+            f'{name}ElbListener',
+            LoadBalancerArn=Ref(elb),
+            Port=settings.container.port,
+            Protocol='TCP',
+            DefaultActions=[
+                Action(TargetGroupArn=Ref(target_group), Type='forward')
+            ],
+        ))
+
+        service = template.add_resource(Service(
+            f'{name}Service',
+            Cluster=Ref(cluster),
+            ServiceName=f'{name}-service',
+            DependsOn=[autoscaling_group.title, listener.title],
+            DesiredCount=settings.container.count,
+            TaskDefinition=Ref(task_definition),
+            LaunchType='EC2',
+            LoadBalancers=[
+                troposphere.ecs.LoadBalancer(
+                    ContainerName=f'{name}',
+                    ContainerPort=settings.container.port,
+                    TargetGroupArn=Ref(target_group),
+                ),
+            ],
+        ))
 
         if settings.pipeline.enable:
-            sierra.pipeline.inject(
-                template,
-                name=name,
-                settings=settings.pipeline,
-                github_token=Ref(parameters.github_token),
-                cluster=cluster,
-                service=service.service,
-            )
+            project = template.add_resource(Project(
+                f'{name}CodeBuildProject',
+                Name=f'{name}Build',
+                ServiceRole=Ref(codebuild_role),
+                Artifacts=Artifacts(Type='CODEPIPELINE'),
+                Source=Source(Type='CODEPIPELINE'),
+                Environment=Environment(
+                    ComputeType='BUILD_GENERAL1_SMALL',
+                    Image='aws/codebuild/docker:17.09.0',
+                    Type='LINUX_CONTAINER',
+                ),
+            ))
+
+            pipeline = template.add_resource(Pipeline(
+                f'{name}Pipeline',
+                RoleArn=GetAtt(codepipeline_role, 'Arn'),
+                ArtifactStore=ArtifactStore(
+                    Type='S3',
+                    Location=Ref(artifact_bucket),
+                ),
+                Stages=[
+                    Stages(
+                        Name='Source',
+                        Actions=[Actions(
+                            Name='Source',
+                            ActionTypeId=ActionTypeId(
+                                Category='Source',
+                                Owner='ThirdParty',
+                                Version='1',
+                                Provider='GitHub',
+                            ),
+                            OutputArtifacts=[
+                                OutputArtifacts(Name=f'{name}Source'),
+                            ],
+                            RunOrder='1',
+                            Configuration={
+                                'Owner': settings.pipeline.user,
+                                'Repo': settings.pipeline.repo,
+                                'Branch': settings.pipeline.branch,
+                                'OAuthToken': Ref(parameters.github_token),
+                            },
+                        )],
+                    ),
+                    Stages(
+                        Name='Build',
+                        Actions=[Actions(
+                            Name='Build',
+                            ActionTypeId=ActionTypeId(
+                                Category='Build',
+                                Owner='AWS',
+                                Version='1',
+                                Provider='CodeBuild',
+                            ),
+                            InputArtifacts=[
+                                InputArtifacts(Name=f'{name}Source'),
+                            ],
+                            OutputArtifacts=[
+                                OutputArtifacts(Name=f'{name}Build'),
+                            ],
+                            RunOrder='1',
+                            Configuration={
+                                'ProjectName': Ref(project),
+                            },
+                        )],
+                    ),
+                    Stages(
+                        Name='Deploy',
+                        Actions=[Actions(
+                            Name='Deploy',
+                            ActionTypeId=ActionTypeId(
+                                Category='Deploy',
+                                Owner='AWS',
+                                Version='1',
+                                Provider='ECS',
+                            ),
+                            InputArtifacts=[
+                                InputArtifacts(Name=f'{name}Build')
+                            ],
+                            RunOrder='1',
+                            Configuration={
+                                'ClusterName': Ref(cluster),
+                                'ServiceName': Ref(service),
+                                'FileName': 'image.json',
+                            },
+                        )],
+                    ),
+                ],
+            ))
+
+            template.add_resource(Webhook(
+                f'{name}CodePipelineWebhook',
+                Name=f'{name}-webhook',
+                Authentication='GITHUB_HMAC',
+                AuthenticationConfiguration=AuthenticationConfiguration(
+                    SecretToken=Ref(parameters.github_token),
+                ),
+                Filters=[FilterRule(
+                    JsonPath='$.ref',
+                    MatchEquals=f'refs/heads/{settings.pipeline.branch}'
+                )],
+                TargetAction='Source',
+                TargetPipeline=Ref(pipeline),
+                TargetPipelineVersion=1,
+                RegisterWithThirdParty=True,
+            ))
 
     return template
