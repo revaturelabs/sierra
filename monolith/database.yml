@@ -128,6 +128,17 @@ Parameters:
   ResourcesBucket:
     Type: String
     Description: Enter the name of the S3 bucket with application-specific resources uploaded by the user. (RPMs for database client, startup SQL script...)
+# Default AMI IDs for the EC2, TODO: add more regions
+Mappings:
+  RegionToImageId:
+    us-east-1:
+      ImageId: ami-b70554c8
+    us-east-2:
+      ImageId: ami-8c122be9
+    us-west-1:
+      ImageId: ami-e0ba5c83
+    us-west-2:
+      ImageId: ami-a9d09ed1
 Resources:
   # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
@@ -210,10 +221,10 @@ Resources:
       InstanceInitiatedShutdownBehavior: terminate
       IamInstanceProfile:
         Ref: FullS3BucketsInstanceProfile
-      ImageId: ami-b70554c8
-      KeyName: rhel-cloud-admin
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]      
+      # KeyName: rhel-cloud-admin
       InstanceType: t2.micro
-      SecurityGroups: [!Ref OracleClientSG]
+      SecurityGroups: !Ref OracleClientSG
       Tags:
         - Key: Name
           Value: OracleClient
