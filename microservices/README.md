@@ -2,61 +2,70 @@
 
 > CloudFormation template generator for microservices
 
+Put basic description here.
+
 ## Requirements
 
-This project requires Python 3.6.
+This project does not have any requirements to run. However, to make use of the generated CloudFormation template, you will need to have sufficient permissions to use CloudFormation on an AWS account.
 
-Your IAM user will need the necessary permissions to use CloudFormation. You will also need to [setup AWS credentials](https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration) on your local workstation.
-
-## Installation
+## Install
 
 Installation instructions will be provided soon.
 
-## Development
-
-### Setup
-
-First, install pipenv:
+## Usage
 
 ```bash
-$ pip install pipenv
 ```
 
-Then, clone this repo and install the dependencies:
+## Develop
+
+This project requires Python 3.6.
 
 ```bash
+# Make sure you have pipenv installed
+$ pip install pipenv
+
 # Clone this repo into the current directory
 $ git clone https://github.com/revaturelabs/sierra.git
+
 # Navigate to the microservices version of sierra
 $ cd sierra/microservices/
-# Install all dependencies, including development only
+```
+
+If you are using Linux, you can use the Makefile included in this repository. A basic description of the available Make goals are below.
+
+```bash
+# Run the "full" build lifecycle (setup, lint, compile)
+$ make
+
+# Remove all generated files
+$ make clean
+
+# Update your development environment
+$ make setup
+
+# Lint source code files
+$ make lint
+
+# Run tests (There are currently no tests for this project)
+$ make test
+
+# Generate a single-file executable
+$ make compile
+```
+
+If you are using Windows, you will need to write out the full commands. There is no single command for running the full build lifecycle or clean.
+
+```bash
+# Update your development environment
 $ pipenv install --dev
+
+# Lint source code files
+$ pipenv run flake8 sierra
+
+# Run tests (There are currently no tests for this project)
+$ pipenv run pytest
+
+# Generate a single-file executable
+$ pipenv run pyinstaller sierra.spec
 ```
-
-Finally activate the pipenv environment. You should activate the environment whenever you run this project.
-
-```bash
-$ pipenv shell
-```
-
-### Tests
-
-To run tests, run either of the following:
-
-```bash
-# Run the py.test command directly
-$ pytest
-
-# Or invoke it indirectly through the test file
-$ ./sierra_test.py
-```
-
-### Compiling
-
-To generate a single-file executable, simply run the following:
-
-```bash
-$ pyinstaller sierra.spec
-```
-
-If you are using Windows, this will create a .exe file. If you are using Linux, it will create a binary executable.
