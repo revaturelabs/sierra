@@ -2,13 +2,64 @@ Description: Master Monolith Template
 
 AWSTemplateFormatVersion: 2010-09-09
 
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups:
+      - Label: 
+          default: "Create a database (Leave defaults if DB exists)"
+        Parameters: 
+          - DBInstanceName
+          - DBInstanceType
+          - DBStorageType
+          - DBStorageSize
+          - DBMultiAZ
+          - DBSecurityGroup
+      - Label: 
+          default: "Use an existing database"
+        Parameters: 
+          - ExistingDBInstanceName
+      - Label: 
+          default: "Database configurations"
+        Parameters: 
+          - DBUsername
+          - DBPassword
+          - DBPort
+          - DBService
+          - ResourceBucket
+      - Label:
+          default: "GitHub Repository"
+        Parameters:
+          - GitHubRepo
+          - GitHubBranch
+          - GitHubUser
+          - GitHubToken
+      - Label:
+          default: "Web Server Options"
+        Parameters:
+          - WebMinSize
+          - WebMaxSize
+          - KeyPair
+
 Parameters:
-  TemplatePath:
+  ResourceBucket:
     Type: String
-    Description: S3Bucket where the templates are stored.
+    Description: S3Bucket where resources are stored.
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Enter a valid KeyPair Name
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
+  DBInstanceName:
+    Type: String
+    Description: New database instance name. (1-63 alphanumeric, all lowercase, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
+    MinLength: 1
+    MaxLength: 63
+    Default: sierra-rds
+    AllowedPattern: "[a-z0-9-]*"
   DBUsername:
     Type: String
     Description: Enter a valid Database username
@@ -22,6 +73,18 @@ Parameters:
     MinLength: 1
     MaxLength: 41
     AllowedPattern: "[a-zA-Z0-9]*"
+  DBPort:
+    Type: Number
+    Description: Enter the port used in the database URL. Defaults to port 1521 for Oracle databases.
+    Default: 1521
+    MinValue: 1
+    MaxValue: 65535
+  DBService:
+    Type: String
+    Description: Enter the service used in the database URL.
+    Default: ORCL
+    MinLength: 0
+    MaxLength: 30
   DBInstanceType:
     Type: String
     Description: Enter one of the possible instance type for database
@@ -30,6 +93,31 @@ Parameters:
       - db.t2.small
       - db.t2.medium
       - db.t2.large
+  DBSecurityGroup:
+    Type: String
+    Description: Name for a new database security group.
+    Default: SierraSG
+    AllowedPattern: "[a-zA-Z0-9]*"
+  DBMultiAZ: 
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  DBStorageType:
+    Type: String
+    Description: Enter one of the possible instance storage type for database; General Purpose (SSD) storage (gp2), Provisioned IOPS storage (io1), Magnetic storage (standard)
+    Default: standard
+    AllowedValues:
+      - gp2
+      - io1
+      - standard
+  DBStorageSize:
+    Type: Number
+    Description: Enter a storage size for database. 20 minimum for gp2, 10 for io1 and standard.
+    Default: 10
+    MinValue: 10
+    MaxValue: 16384
   # WebInstanceType:
   #   Type: String
   #   Description: Enter one of the possible instance type for web server
@@ -66,7 +154,7 @@ Resources:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/database.yml"
+        Fn::Sub: "https://s3.amazonaws.com/${ResourceBucket}/monolith/database.yml"
       Parameters:
         DBUsername:
           Ref: DBUsername
@@ -74,8 +162,22 @@ Resources:
           Ref: DBPassword
         DBInstanceType:
           Ref: DBInstanceType
-        # Environment:
-        #   Ref: Environment
+        ExistingDBInstanceName:
+          Ref: ExistingDBInstanceName
+        DBInstanceName:
+          Ref: DBInstanceName
+        DBPort:
+          Ref: DBPort
+        DBService:
+          Ref: DBService
+        DBSecurityGroup:
+          Ref: DBSecurityGroup
+        DBMultiAZ:
+          Ref: DBMultiAZ
+        DBStorageType:
+          Ref: DBStorageType
+        DBStorageSize:
+          Ref: DBStorageSize
       Tags:
         - Key: Name
           Value: DatabaseStack
@@ -84,10 +186,10 @@ Resources:
     Type: "AWS::CloudFormation::Stack"
     Properties:
       TemplateURL:
-        Fn::Sub: "https://s3.amazonaws.com/${TemplatePath}/monolith/pipeline.yml"
+        Fn::Sub: "https://s3.amazonaws.com/${ResourceBucket}/monolith/pipeline.yml"
       Parameters: 
         ArtifactStoreS3Location:
-          Ref: TemplatePath
+          Ref: ResourceBucket
         GitHubUser:
           Ref: GitHubUser
         GitHubToken:

@@ -143,8 +143,8 @@ Resources:
                   - "codebuild:StartBuild"
                   - "codebuild:BatchGetBuilds"
                 Resource:
-                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/Sierra
-                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/Sierra:*
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/Project-${AWS::StackName}
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/Project-${AWS::StackName}:*
               -
                 Effect: "Allow"
                 Action:
@@ -160,12 +160,15 @@ Resources:
                   - "rds:*"
                   - "sqs:*"
                   - "ecs:*"
-                Resource: "*"               
-  SierraBuild:
+                Resource: "*"  
+
+  
+  ProjectBuild:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: Sierra
-      Description: Build Sierra
+      Name: 
+        Fn::Sub: Project-${AWS::StackName}
+      Description: Build Project
       ServiceRole:
         Fn::GetAtt: [ CodeBuildRole, Arn ]
       Artifacts:
@@ -180,6 +183,8 @@ Resources:
       Tags:
         - Key: Name
           Value: Build
+
+  # CodePipeline for building and deployment of web application
   DeployPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
@@ -187,7 +192,8 @@ Resources:
         Location:
           Ref: ArtifactStoreS3Location
         Type: S3
-      Name: SierraPipeline
+      Name: 
+        Fn::Sub: Pipeline-${AWS::StackName}
       RoleArn:
           Fn::GetAtt: [ CodePipelineRole, Arn ]
       Stages:
@@ -222,7 +228,7 @@ Resources:
             OutputArtifacts: [Name: BuildOut]
             Configuration:
               ProjectName: 
-                Ref: SierraBuild
+                Ref: ProjectBuild
             RunOrder: 1
         - Name: Deploy
           Actions:
@@ -232,14 +238,15 @@ Resources:
               Owner: AWS 
               Version: 1 
               Provider: ElasticBeanstalk
-              # Provider: S3
             InputArtifacts:
               - Name: BuildOut
             Configuration:
-              # ApplicationName: !Ref DeploymentApplication
-              # DeploymentGroupName: !Ref DeploymentGroup
               ApplicationName: !Ref Application
               EnvironmentName: !Ref TomcatEnvironment
+
+  # Security group for Elastic Beanstalk server.
+  # Port 8080 is required for Tomcat
+  # Port 22 is required for SSH
   WebAppSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties: 
@@ -257,12 +264,14 @@ Resources:
           FromPort: 8080
           ToPort: 8080
           CidrIp: 0.0.0.0/0
-      # VpcId: !Ref VPC
+
+  # Elastic Beanstalk application
   Application:
    Type: AWS::ElasticBeanstalk::Application
    Properties:
-     Description: AWS Elastic Beanstalk Sample Application
+     Description: AWS Elastic Beanstalk Application
 
+  # Application version used to deploy application on initial start-up of Elastic Beanstalk
   # ApplicationVersion:
   #  Type: AWS::ElasticBeanstalk::ApplicationVersion
   #  Properties:
@@ -271,8 +280,9 @@ Resources:
   #    Description: AWS ElasticBeanstalk Sample Application Version
   #    SourceBundle:
   #      S3Bucket: !Ref ArtifactStoreS3Location
-  #      S3Key: caliber.war
+  #      S3Key: example.war
 
+  # Elastic Beanstalk application configuration template
   AppConfigurationTemplate:
    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
    Properties:
@@ -280,47 +290,9 @@ Resources:
        Ref: Application
      Description: AWS ElasticBeanstalk Sample Configuration Template
      OptionSettings:
+    #  Configure Environment Variables:
     #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: SALESFORCE_CLIENT_ID
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: SALESFORCE_CLIENT_SECRET
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_API_USERNAME
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_API_PASSWORD
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_API_SERVER
-    #     Value: http://localhost:2100/
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: JAVA_HOME
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_DB_URL
-    #     Value: jdbc:oracle:thin:(DB_SERVER):1521:xe
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_DB_USER
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_DB_PASS
-    #     Value: (VALUE)
-      - Namespace: aws:elasticbeanstalk:application:environment
-        OptionName: CALIBER_PROJECT_URL
-        Value: http://localhost:8080/caliber/
-      - Namespace: aws:elasticbeanstalk:application:environment
-        OptionName: CALIBER_SERVER_URL
-        Value: http://localhost:8080/
-      - Namespace: aws:elasticbeanstalk:application:environment
-        OptionName: CALIBER_DEV_MODE
-        Value: true
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_EMAIL_USERNAME
-    #     Value: (VALUE)
-    #  - Namespace: aws:elasticbeanstalk:application:environment
-    #     OptionName: CALIBER_EMAIL_PASS
+    #     OptionName: (ENVIRONMENT_VARIABLE)
     #     Value: (VALUE)
       - Namespace: aws:autoscaling:launchconfiguration
         OptionName: SecurityGroups
@@ -340,6 +312,7 @@ Resources:
         Value: !Ref KeyName
      SolutionStackName: 64bit Amazon Linux 2018.03 v3.0.1 running Tomcat 8 Java 8
      
+  # Elastic Beanstalk Tomcat environment
   TomcatEnvironment:
    Type: AWS::ElasticBeanstalk::Environment
    Properties:
@@ -348,5 +321,6 @@ Resources:
      Description: AWS ElasticBeanstalk Sample Environment
      TemplateName:
        Ref: AppConfigurationTemplate
+    # Apply Application Version:
     #  VersionLabel:
     #    Ref: ApplicationVersion
