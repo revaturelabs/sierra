@@ -9,7 +9,7 @@
   "default": {
     "container": {
       "cpu": 256,
-      "memory": 512
+      "memory": 1024
     },
     "pipeline": {
       "user": "Eliaso10",
