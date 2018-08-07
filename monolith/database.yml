@@ -1,32 +1,102 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CloudFormation stack for initializing the RDS with SQL scripts on a S3 bucket.
+Description: CloudFormation stack for creating and initializing the RDS with an SQL script.
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups:
+      - Label: 
+          default: "Create a database (Leave defaults if DB exists)"
+        Parameters: 
+          - DBInstanceName
+          - DBInstanceType
+          - DBStorageType
+          - DBStorageSize
+          - DBMultiAZ
+          - DBSecurityGroup
+      - Label: 
+          default: "Use an existing database"
+        Parameters: 
+          - ExistingDBInstanceName
+      - Label: 
+          default: "Database configurations"
+        Parameters: 
+          - DBUsername
+          - DBPassword
+          - DBPort
+          - DBService
+          - ResourcesBucket
+          
 Parameters:
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
+  DBInstanceName:
+    Type: String
+    Description: New database instance name. (1-63 alphanumeric, all lowercase, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
+    MinLength: 1
+    MaxLength: 63
+    Default: sierra-rds
+    AllowedPattern: "[a-z0-9-]*"
   DBUsername:
     Type: String
-    Description: Enter a valid Database username
+    Description: Enter a valid Database username. (1-30 alphanumeric)
     MinLength: 1
-    MaxLength: 16
+    MaxLength: 30
+    Default: admin
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-    #     Minimum password enforced by AWS:
-    # MySQL: Must contain from 8 to 41 alphanumeric characters.
-    # Oracle: Must contain from 8 to 30 alphanumeric characters.
-    # SQL Server: Must contain from 8 to 128 alphanumeric characters.
+  #===============================================
+  #     Minimum password enforced by AWS:
+  # MySQL: Must contain from 8 to 41 alphanumeric characters.
+  # Oracle: Must contain from 8 to 30 alphanumeric characters.
+  # SQL Server: Must contain from 8 to 128 alphanumeric characters.
+  #===============================================
   DBPassword:
     Type: String
-    Description: Enter a valid Database password
+    Description: Enter a valid Database password (8-30 alphanumeric characters)
     NoEcho: true
     MinLength: 8
     MaxLength: 30
-    AllowedPattern: "[a-zA-Z0-9]*"
+    AllowedPattern: "[a-zA-Z0-9]*"    
+  DBPort:
+    Type: Number
+    Description: Enter the port used in the database URL. Defaults to port 1521 for Oracle databases.
+    Default: 1521
+    MinValue: 1
+    MaxValue: 65535
+  DBService:
+    Type: String
+    Description: Enter the service used in the database URL.
+    Default: ORCL
+    MinLength: 0
+    MaxLength: 30
   DBInstanceType:
     Type: String
-    Description: Enter one of the possible instance type for database
+    Description: Enter one of the possible instance types for database.
+    Default: db.t2.micro
     AllowedValues:
       - db.t2.micro
-      - db.t2.small
-      - db.t2.medium
       - db.t2.large
+      - db.m3.medium
+      - db.m3.2xlarge
+      - db.m4.large
+      - db.m4.16xlarge
+      - db.r4.large	
+      - db.r4.16xlarge
+  DBSecurityGroup:
+    Type: String
+    Description: Name for a new database security group.
+    Default: SierraSG
+    AllowedPattern: "[a-zA-Z0-9]*"
+  DBMultiAZ: 
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  #===============================================
   #     Storage size ranges enforced by AWS:
   # MySQL, MariaDB, PostgreSQL:
   #   gp2: 20 to 16384
@@ -40,35 +110,56 @@ Parameters:
   #   gp2: 20 to 16384
   #   io1: 100 to 16384
   #   standard: 20 to 1024
-  # DBStorageType:
-    # Type: String
-    # Description: Enter one of the possible instance storage type for database
-    # AllowedValues:
-      # - General Purpose (SSD) storage (gp2)
-      # - Provisioned IOPS storage (io1)
-      # - Magnetic storage (standard)
-  # DBStorageSize:
-    # Type: Number
-    # Description: Enter one of the possible instance type for database
-    # MinValue: 
-    # MaxValue:
+  #===============================================
+  DBStorageType:
+    Type: String
+    Description: Enter one of the possible instance storage type for database; General Purpose (SSD) storage (gp2), Provisioned IOPS storage (io1), Magnetic storage (standard)
+    Default: standard
+    AllowedValues:
+      - gp2
+      - io1
+      - standard
+  DBStorageSize:
+    Type: Number
+    Description: Enter a storage size for database. 20 minimum for gp2, 10 for io1 and standard.
+    Default: 10
+    MinValue: 10
+    MaxValue: 16384
+  ResourcesBucket:
+    Type: String
+    Description: Enter the name of the S3 bucket with application-specific resources uploaded by the user. (RPMs for database client, startup SQL script...)
+# Default AMI IDs for the EC2, TODO: add more regions
+Mappings:
+  RegionToImageId:
+    us-east-1:
+      ImageId: ami-b70554c8
+    us-east-2:
+      ImageId: ami-8c122be9
+    us-west-1:
+      ImageId: ami-e0ba5c83
+    us-west-2:
+      ImageId: ami-a9d09ed1
 Resources:
-  # Create the Oracle RDS
+  # Create the Oracle RDS Security Group
   SecurityGroupSierraRDS:
+    Condition: CreatingNewDB
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: SecurityGroupSierraRDS
+      GroupName: 
+        Ref: DBSecurityGroup
       GroupDescription: Security group for Sierra RDS backend
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 1521
-          ToPort: 1521
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
           CidrIp: 0.0.0.0/0
+  # Create the Oracle RDS
   SierraRDS:
+    Condition: CreatingNewDB
     Type: AWS::RDS::DBInstance
     Properties:
-      AllocatedStorage: '10'
-        # Ref: DBStorageSize
+      AllocatedStorage:
+        Ref: DBStorageSize
       DBInstanceClass:
         Ref: DBInstanceType
       Engine: oracle-ee
@@ -78,10 +169,142 @@ Resources:
         Ref: DBPassword
       VPCSecurityGroups:
       - !GetAtt SecurityGroupSierraRDS.GroupId
-      StorageType: standard
-        # Ref: DBStorageType
+      StorageType:
+        Ref: DBStorageType
+      DBInstanceIdentifier:
+        Ref: DBInstanceName
+      MultiAZ: 
+        Ref: DBMultiAZ
+  # Create EC2 profile for client
+  FullS3BucketsInstanceProfile:
+    Condition: CreatingNewDB
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: FullS3BucketsRole
+  # Create S3 policy for client
+  FullS3BucketsPolicy:
+    Condition: CreatingNewDB
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: FullS3BucketsPolicy
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: "*"
+      Roles:
+      - Ref: FullS3BucketsRole
+  # Create IAM role for client
+  FullS3BucketsRole:
+    Condition: CreatingNewDB
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  # EC2 to initialize RDS with SQL*PLUS client
+  OracleClient:
+    Condition: CreatingNewDB
+    Type: AWS::EC2::Instance
+    DependsOn: SierraRDS
+    Properties:
+      InstanceInitiatedShutdownBehavior: terminate
+      IamInstanceProfile:
+        Ref: FullS3BucketsInstanceProfile
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]      
+      # KeyName: rhel-cloud-admin
+      InstanceType: t2.micro
+      SecurityGroups: !Ref OracleClientSG
       Tags:
         - Key: Name
-          Value: SierraRDS
-      
-  # Lambda function to initialize RDS with SQL scripts
+          Value: OracleClient
+      UserData:
+        Fn::Base64: 
+          !Sub 
+          - |
+            #!/bin/bash
+            yum update -y
+            echo '# .bash_profile' > /home/ec2-user/.bash_profile
+            echo '' >> /home/ec2-user/.bash_profile
+            echo '# Get the aliases and functions' >> /home/ec2-user/.bash_profile
+            echo 'if [ -f ~/.bashrc ]; then' >> /home/ec2-user/.bash_profile
+            echo '        . ~/.bashrc' >> /home/ec2-user/.bash_profile
+            echo 'fi' >> /home/ec2-user/.bash_profile
+            echo '' >> /home/ec2-user/.bash_profile
+            echo '# User specific environment and startup programs' >> /home/ec2-user/.bash_profile
+            echo '' >> /home/ec2-user/.bash_profile
+            echo 'ORACLE_HOME=/usr/lib/oracle/12.1/client64' >> /home/ec2-user/.bash_profile
+            echo 'PATH=$PATH:$HOME/.local/bin:$HOME/bin:$ORACLE_HOME/bin' >> /home/ec2-user/.bash_profile
+            echo 'LD_LIBRARY_PATH=$ORACLE_HOME/lib' >> /home/ec2-user/.bash_profile
+            echo 'export PATH' >> /home/ec2-user/.bash_profile
+            echo 'export ORACLE_HOME' >> /home/ec2-user/.bash_profile
+            echo 'export LD_LIBRARY_PATH' >> /home/ec2-user/.bash_profile
+            aws s3 sync s3://${Bucket} /home/ec2-user/
+            rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
+            rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
+            . /home/ec2-user/.bash_profile
+            echo ${Endpoint} ${Username} ${Password} ${Port} ${Service} > /home/ec2-user/debugme
+            echo exit | /usr/lib/oracle/12.1/client64/bin/sqlplus  '${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Service})))' @/home/ec2-user/schema-generator.sql
+            # echo "We did it!" >> /home/ec2-user/helpme
+            shutdown -h now
+          - {
+            Endpoint: !GetAtt SierraRDS.Endpoint.Address,
+            Username: !Ref DBUsername,
+            Password: !Ref DBPassword,
+            Bucket: !Ref ResourcesBucket,
+            Port: !Ref DBPort,
+            Service: !Ref DBService
+            }
+  # Create Oracle client security group
+  OracleClientSG:
+    Condition: CreatingNewDB
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH and Oracle ports
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          CidrIp: 0.0.0.0/0
+        
+# Export values to other templates:
+Outputs:
+  DatabaseURL:
+    Description: Database URL
+    Value: !Sub
+      - "jdbc:oracle:thin:${Endpoint}:${Port}:${Service}"
+      - {
+        Endpoint: !GetAtt SierraRDS.Endpoint.Address,
+        Port: !Ref DBPort,
+        Service: !Ref DBService
+        }
+  DBUsername:
+    Description: Database username
+    Value: !Ref DBUsername
+  DBPassword:
+    Description: Database password
+    Value: !Ref DBPassword
+  DBInstanceName:
+    Description: Database instance name
+    Value: !Ref DBInstanceName
+  ResourcesBucket:
+    Description: Bucket with user-uploaded resources
+    Value: !Ref ResourcesBucket
+    
+Conditions:
+  # Create new database if there is no existing database
+  CreatingNewDB: !Equals [!Ref ExistingDBInstanceName, ""]
