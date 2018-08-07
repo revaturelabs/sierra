@@ -1,18 +1,27 @@
-from troposphere import GetAtt, Join, Ref, Sub
+import awacs.sts
+from awacs.aws import Allow, PolicyDocument, Statement, Principal
+from troposphere import Base64, GetAZs, Ref, Select, Sub, Tags
 from troposphere import Parameter, Template
-from troposphere.cloudformation import Stack
+from troposphere.autoscaling import AutoScalingGroup, LaunchConfiguration
+from troposphere.ec2 import (
+    InternetGateway, Route, RouteTable, SecurityGroup, SecurityGroupRule,
+    Subnet, SubnetRouteTableAssociation, VPC, VPCGatewayAttachment)
+from troposphere.ecs import Cluster
+from troposphere.elasticloadbalancingv2 import LoadBalancer
+from troposphere.policies import (
+    CreationPolicy, UpdatePolicy, ResourceSignal, AutoScalingRollingUpdate)
+from troposphere.iam import InstanceProfile, Role
 
-import sierra.elb
-import sierra.network
 import sierra.pipeline
 import sierra.service
 
-from .elb import ELB_NAME
 from .utils import AttrDict
 
 
+ELB_NAME = 'ElbLoadBalancer'
 DEFAULTS = AttrDict({
     'container': AttrDict({
+        'count': 1,
         'cpu': 128,
         'memory': 256,
     }),
@@ -92,6 +101,7 @@ def build_interface(env_vars):
                     'InstanceType',
                     'ClusterSize',
                     'KeyName',
+                    'ImageId',
                 ],
                 'Environment Variables': [
                     k for k, v in env_vars
@@ -148,6 +158,19 @@ def build_template(sierrafile):
             'KeyName',
             Type='AWS::EC2::KeyPair::KeyName',
         )),
+        image_id=template.add_parameter(Parameter(
+            'ImageId',
+            Type='AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>',
+            Default=(
+                '/aws/service/ecs/optimized-ami'
+                '/amazon-linux/recommended/image_id'
+            ),
+            Description=(
+              'An SSM parameter that resolves to a valid AMI ID.'
+              ' This is the AMI that will be used to create ECS hosts.'
+              ' The default is the current recommended ECS-optimized AMI.'
+            )
+        )),
 
         # Other Parameters
 
@@ -155,13 +178,6 @@ def build_template(sierrafile):
             'GitHubToken',
             Type='String',
             NoEcho=True,
-        )),
-
-        bucket=template.add_parameter(Parameter(
-            'TemplateBucket',
-            Description='The S3 bucket containing all of the templates.',
-            Type='String',
-            Default='templates.sierra.goeppes',
         )),
     )
 
@@ -174,49 +190,223 @@ def build_template(sierrafile):
             NoEcho=True,
         ))
 
-    def template_url(name):
-        return Sub(
-            f'https://s3.amazonaws.com/'
-            f'${{{parameters.bucket.title}}}/'
-            f'templates/{name}'
-        )
-
     # Resource Declarations
 
-    network = sierra.network.inject(
-        template,
-        vpc_cidr=Ref(parameters.vpc_cidr),
-        subnet1_cidr=Ref(parameters.subnet1_cidr),
-        subnet2_cidr=Ref(parameters.subnet2_cidr),
-    )
+    # # Network
 
-    elb = sierra.elb.inject(template, network, [
-        settings.container.port
-        for service_name, settings in sierrafile.services.items()
-    ])
+    network_vpc = template.add_resource(VPC(
+        'NetworkVpc',
+        CidrBlock=Ref(parameters.vpc_cidr),
+        Tags=Tags(Name=Ref('AWS::StackName')),
+    ))
 
-    # Resources
+    network_ig = template.add_resource(InternetGateway(
+        'NetworkInternetGateway',
+        Tags=Tags(Name=Ref('AWS::StackName')),
+    ))
 
-    cluster = template.add_resource(Stack(
-        'Cluster',
-        TemplateURL=template_url('ecs-cluster.yml'),
-        Parameters={
-            'ClusterSize': Ref(parameters.cluster_size),
-            'InstanceType': Ref(parameters.instance_type),
-            'KeyName': Ref(parameters.key_name),
-            'Subnets': Join(',', network.subnets),
-            'VPC': network.vpc,
+    template.add_resource(VPCGatewayAttachment(
+        'NetworkInternetGatewayAttachment',
+        InternetGatewayId=Ref(network_ig),
+        VpcId=Ref(network_vpc),
+    ))
+
+    route_table = template.add_resource(RouteTable(
+        'NetworkRouteTable',
+        VpcId=Ref(network_vpc),
+        Tags=Tags(Name=Ref('AWS::StackName')),
+    ))
+
+    template.add_resource(Route(
+        'NetworkDefaultRoute',
+        RouteTableId=Ref(route_table),
+        DestinationCidrBlock='0.0.0.0/0',
+        GatewayId=Ref(network_ig),
+    ))
+
+    subnet1 = template.add_resource(Subnet(
+        'NetworkSubnet1',
+        VpcId=Ref(network_vpc),
+        AvailabilityZone=Select(0, GetAZs()),
+        MapPublicIpOnLaunch=True,
+        CidrBlock=Ref(parameters.subnet1_cidr),
+        Tags=Tags(Name=Sub('${AWS::StackName} (Public)')),
+    ))
+
+    subnet2 = template.add_resource(Subnet(
+        'NetworkSubnet2',
+        VpcId=Ref(network_vpc),
+        AvailabilityZone=Select(1, GetAZs()),
+        MapPublicIpOnLaunch=True,
+        CidrBlock=Ref(parameters.subnet2_cidr),
+        Tags=Tags(Name=Sub('${AWS::StackName} (Public)')),
+    ))
+
+    template.add_resource(SubnetRouteTableAssociation(
+        'NetworkSubnet1RouteTableAssociation',
+        RouteTableId=Ref(route_table),
+        SubnetId=Ref(subnet1),
+    ))
+
+    template.add_resource(SubnetRouteTableAssociation(
+        'NetworkSubnet2RouteTableAssociation',
+        RouteTableId=Ref(route_table),
+        SubnetId=Ref(subnet2),
+    ))
+
+    elb = template.add_resource(LoadBalancer(
+        ELB_NAME,
+        Name=Sub('${AWS::StackName}-elb'),
+        Type='network',
+        Subnets=[Ref(subnet1), Ref(subnet2)],
+    ))
+
+    # # Cluster
+
+    ecs_host_role = template.add_resource(Role(
+        'EcsHostRole',
+        AssumeRolePolicyDocument=PolicyDocument(
+            Statement=[Statement(
+                Effect=Allow,
+                Principal=Principal('Service', 'ec2.amazonaws.com'),
+                Action=[awacs.sts.AssumeRole]
+            )],
+        ),
+        ManagedPolicyArns=[
+            'arn:aws:iam::aws:policy/'
+            'service-role/AmazonEC2ContainerServiceforEC2Role'
+        ]
+    ))
+
+    ecs_host_profile = template.add_resource(InstanceProfile(
+        'EcsHostInstanceProfile',
+        Roles=[Ref(ecs_host_role)]
+    ))
+
+    ecs_host_sg = template.add_resource(SecurityGroup(
+        'EcsHostSecurityGroup',
+        GroupDescription=Sub('${AWS::StackName}-hosts'),
+        VpcId=Ref(network_vpc),
+        SecurityGroupIngress=[SecurityGroupRule(
+            CidrIp='0.0.0.0/0',
+            IpProtocol='-1'
+        )]
+    ))
+
+    cluster = template.add_resource(Cluster(
+        'EcsCluster',
+        ClusterName=Ref('AWS::StackName')
+    ))
+
+    autoscaling_name = 'EcsHostAutoScalingGroup'
+    launch_conf_name = 'EcsHostLaunchConfiguration'
+
+    launch_conf = template.add_resource(LaunchConfiguration(
+        launch_conf_name,
+        ImageId=Ref(parameters.image_id),
+        InstanceType=Ref(parameters.instance_type),
+        IamInstanceProfile=Ref(ecs_host_profile),
+        KeyName=Ref(parameters.key_name),
+        SecurityGroups=[Ref(ecs_host_sg)],
+        UserData=Base64(Sub(
+            '#!/bin/bash\n'
+            'yum install -y aws-cfn-bootstrap\n'
+            '/opt/aws/bin/cfn-init -v'
+            ' --region ${AWS::Region}'
+            ' --stack ${AWS::StackName}'
+            f' --resource {launch_conf_name}\n'
+            '/opt/aws/bin/cfn-signal -e $?'
+            ' --region ${AWS::Region}'
+            ' --stack ${AWS::StackName}'
+            f' --resource {autoscaling_name}\n'
+        )),
+        Metadata={
+            'AWS::CloudFormation::Init': {
+                'config': {
+                    'commands': {
+                        '01_add_instance_to_cluster': {
+                            'command': Sub(
+                                f'echo ECS_CLUSTER=${{{cluster.title}}}'
+                                f' > /etc/ecs/ecs.config'
+                            ),
+                        }
+                    },
+                    'files': {
+                        '/etc/cfn/cfn-hup.conf': {
+                            'mode': 0o400,
+                            'owner': 'root',
+                            'group': 'root',
+                            'content': Sub(
+                                '[main]\n'
+                                'stack=${AWS::StackId}\n'
+                                'region=${AWS::Region}\n'
+                            ),
+                        },
+                        '/etc/cfn/hooks.d/cfn-auto-reloader.conf': {
+                            'content': Sub(
+                                '[cfn-auto-reloader-hook]\n'
+                                'triggers=post.update\n'
+                                'path=Resources.ContainerInstances.Metadata'
+                                '.AWS::CloudFormation::Init\n'
+                                'action=/opt/aws/bin/cfn-init -v'
+                                ' --region ${AWS::Region}'
+                                ' --stack ${AWS::StackName}'
+                                f' --resource {launch_conf_name}\n'
+                            ),
+                        },
+                    },
+                    'services': {
+                        'sysvinit': {
+                            'cfn-hup': {
+                                'enabled': True,
+                                'ensureRunning': True,
+                                'files': [
+                                    '/etc/cfn/cfn-hup.conf',
+                                    '/etc/cfn/hooks.d/cfn-auto-reloader.conf'
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
         }
     ))
+
+    template.add_resource(AutoScalingGroup(
+        autoscaling_name,
+        VPCZoneIdentifier=[Ref(subnet1), Ref(subnet2)],
+        LaunchConfigurationName=Ref(launch_conf),
+        DesiredCapacity=Ref(parameters.cluster_size),
+        MinSize=Ref(parameters.cluster_size),
+        MaxSize=Ref(parameters.cluster_size),
+        Tags=[{
+            'Key': 'Name',
+            'Value': Sub('${AWS::StackName} - ECS Host'),
+            'PropagateAtLaunch': True,
+        }],
+        CreationPolicy=CreationPolicy(
+            ResourceSignal=ResourceSignal(Timeout='PT15M'),
+        ),
+        UpdatePolicy=UpdatePolicy(
+            AutoScalingRollingUpdate=AutoScalingRollingUpdate(
+                MinInstancesInService=1,
+                MaxBatchSize=1,
+                PauseTime='PT5M',
+                WaitOnResourceSignals=True,
+            ),
+        ),
+    ))
+
+    # # Services
 
     for name, settings in sierrafile.services.items():
         service = sierra.service.inject(
             template,
             name=name,
             container_settings=settings.container,
-            cluster=GetAtt(cluster, 'Outputs.ClusterName'),
+            cluster=Ref(cluster),
             elb=elb,
-            network=network,
+            vpc=network_vpc,
             env_vars={
                 k: v
                 for k, v in sierrafile.env_vars.items()

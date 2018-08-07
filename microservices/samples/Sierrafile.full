@@ -12,7 +12,7 @@
       "memory": 512
     },
     "pipeline": {
-      "user": "goeppes",
+      "user": "Eliaso10",
       "branch": "master"
     },
     "environment": [
@@ -27,7 +27,7 @@
         "port": 8888
       },
       "pipeline": {
-        "repo": "revaturelabs/caliber-config"
+        "repo": "caliber-config"
       },
       "environment": [
         "CALIBER_CONFIG_GIT_URI",
@@ -41,7 +41,7 @@
         "port": 8761
       },
       "pipeline": {
-        "repo": "revaturelabs/caliber-eureka"
+        "repo": "caliber-eureka"
       },
       "environment": [
         "CALIBER_CONFIG_SERVER_URL"
@@ -53,7 +53,7 @@
         "port": 9999
       },
       "pipeline": {
-        "repo": "revaturelabs/caliber-zuul"
+        "repo": "caliber-zuul"
       }
     },
     "CaliberTrainingService": {
@@ -62,7 +62,7 @@
         "port": 9898
       },
       "pipeline": {
-        "repo": "revaturelabs/caliber-training-service"
+        "repo": "caliber-training-service"
       }
     },
     "CaliberDocumentService": {
@@ -71,7 +71,7 @@
         "port": 9000
       },
       "pipeline": {
-        "repo": "revaturelabs/caliber-document-service"
+        "repo": "caliber-document-service"
       }
     }
   }
