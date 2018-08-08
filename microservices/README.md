@@ -2,11 +2,7 @@
 
 > CloudFormation template generator for microservices
 
-Sierra Microservices is a CloudFormation template that provisions and allocates in proportion to the project specifications. Sierra Microservices runs a pythons script that creates a master template for CloudFormation to provision everything that is needed for your architecture. The microservices template should also be configured to continuous integrate. After the architecture is created all that is needed to be done is pushing a change and the template should handle the rest.
-
-## Requirements
-
-This project does not have any requirements to run. However, to make use of the generated CloudFormation template, you will need to have sufficient permissions to use CloudFormation on an AWS account.
+Sierra for Microservices is a Python program that generates CloudFormation templates for microservice applications. These templates provision and allocate AWS resources in proportion to the specifications of the application. Everything from creating Docker hosts to the continuous deployment of containers can be handled by Sierra and CloudFormation.
 
 ## Install
 
@@ -14,7 +10,7 @@ To install, follow the [instructions in the wiki](https://github.com/revaturelab
 
 ## Usage
 
-```bash
+```
 $ sierra --help
 usage: sierra [-h] [-f FILE] [-o OUT] [--format {yaml,json}] [--compact]
 
