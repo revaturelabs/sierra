@@ -10,11 +10,22 @@ This project does not have any requirements to run. However, to make use of the 
 
 ## Install
 
-Installation instructions will be provided soon.
+To install, follow the [instructions in the wiki](https://github.com/revaturelabs/sierra/wiki/Microservice%3A-Usage).
 
 ## Usage
 
 ```bash
+$ sierra --help
+usage: sierra [-h] [-f FILE] [-o OUT] [--format {yaml,json}] [--compact]
+
+Generate a CloudFormation template for microservices.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f FILE, --file FILE  specify the Sierrafile to use
+  -o OUT, --out OUT     a file to write output into
+  --format {yaml,json}  specify the output file format
+  --compact             make output compact (only for json)
 ```
 
 ## Develop

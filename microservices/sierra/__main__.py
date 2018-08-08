@@ -1,8 +1,12 @@
+"""Generate a CloudFormation template for microservices.
+"""
+
 import argparse
 import json
 import sys
 
-import sierra
+from sierra.config import parse
+from sierra.template import build_template
 from sierra.utils import AttrDict
 
 
@@ -15,7 +19,8 @@ def main():
                         default=sys.stdout,
                         help='a file to write output into')
     parser.add_argument('--format', choices=['yaml', 'json'],
-                        default='yaml')
+                        default='yaml',
+                        help='specify the output file format')
     parser.add_argument('--compact', action='store_true',
                         help='make output compact (only for json)')
 
@@ -28,8 +33,8 @@ def main():
         parser.print_help()
         parser.exit()
 
-    sierrafile = sierra.parse_sierrafile(raw_sierrafile)
-    template = sierra.build_template(sierrafile)
+    sierrafile = parse(raw_sierrafile)
+    template = build_template(sierrafile)
 
     if args.format == 'json':
         result = template.to_json()
