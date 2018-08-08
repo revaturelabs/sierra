@@ -373,7 +373,10 @@ def build_template(sierrafile):
         ],
     ))
 
-    artifact_bucket = template.add_resource(Bucket('ArtifactBucket'))
+    artifact_bucket = template.add_resource(Bucket(
+        'ArtifactBucket',
+        DeletionPolicy='Retain',
+    ))
 
     codebuild_role = template.add_resource(Role(
         'CodeBuildServiceRole',
