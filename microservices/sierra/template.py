@@ -163,7 +163,7 @@ def build_template(sierrafile):
         Tags=Tags(Name=Ref('AWS::StackName')),
     ))
 
-    template.add_resource(VPCGatewayAttachment(
+    vpc_attach = template.add_resource(VPCGatewayAttachment(
         'NetworkInternetGatewayAttachment',
         InternetGatewayId=Ref(network_ig),
         VpcId=Ref(network_vpc),
@@ -177,6 +177,7 @@ def build_template(sierrafile):
 
     template.add_resource(Route(
         'NetworkDefaultRoute',
+        DependsOn=[vpc_attach.title],
         RouteTableId=Ref(route_table),
         DestinationCidrBlock='0.0.0.0/0',
         GatewayId=Ref(network_ig),
@@ -372,10 +373,7 @@ def build_template(sierrafile):
         ],
     ))
 
-    artifact_bucket = template.add_resource(Bucket(
-        'ArtifactBucket',
-        DeletionPolicy='Retain'
-    ))
+    artifact_bucket = template.add_resource(Bucket('ArtifactBucket'))
 
     codebuild_role = template.add_resource(Role(
         'CodeBuildServiceRole',
@@ -541,10 +539,10 @@ def build_template(sierrafile):
 
         target_group = template.add_resource(TargetGroup(
             f'{name}TargetGroup',
-            Name=f'tg-{name}'[:32],
             Port=settings.container.port,
             Protocol='TCP',
             VpcId=Ref(network_vpc),
+            Tags=Tags(Name=Sub(f'${{AWS::StackName}}-{name}')),
         ))
 
         listener = template.add_resource(Listener(
@@ -653,7 +651,7 @@ def build_template(sierrafile):
 
             template.add_resource(Webhook(
                 f'{name}CodePipelineWebhook',
-                Name=f'{name}-webhook',
+                Name=Sub(f'${{AWS::StackName}}-{name}-webhook'),
                 Authentication='GITHUB_HMAC',
                 AuthenticationConfiguration=AuthenticationConfiguration(
                     SecretToken=Ref(parameters.github_token),
