@@ -1,5 +1,4 @@
 Description: Create a CodePipeline to include Nested CloudFormation, CodeBuild and Approval steps.
-
 Parameters:
   ArtifactStoreS3Location:
     Type: String
@@ -22,7 +21,10 @@ Parameters:
   WebMaxSize:
     Type: String
     Description: Maximum number of instances in auto scaling group
-
+  EnvName:
+    Type: String
+    Default: SierraDeployment
+    Description: Name of EC2 instance deployments
 Resources:
   CodeBuildRole:
     Type: "AWS::IAM::Role"
@@ -100,7 +102,6 @@ Resources:
                 Action:
                   - "ssm:*"
                 Resource: "*"   
-
   CodePipelineRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -175,7 +176,6 @@ Resources:
                   - "sqs:*"
                   - "ecs:*"
                 Resource: "*"  
-
   
   ProjectBuild:
     Type: AWS::CodeBuild::Project
@@ -197,7 +197,6 @@ Resources:
       Tags:
         - Key: Name
           Value: Build
-
   # CodePipeline for building and deployment of web application
   DeployPipeline:
     Type: "AWS::CodePipeline::Pipeline"
@@ -257,7 +256,6 @@ Resources:
             Configuration:
               ApplicationName: !Ref Application
               EnvironmentName: !Ref TomcatEnvironment
-
   # Security group for Elastic Beanstalk server.
   # Port 8080 is required for Tomcat
   # Port 22 is required for SSH
@@ -278,13 +276,11 @@ Resources:
           FromPort: 8080
           ToPort: 8080
           CidrIp: 0.0.0.0/0
-
   # Elastic Beanstalk application
   Application:
    Type: AWS::ElasticBeanstalk::Application
    Properties:
      Description: AWS Elastic Beanstalk Application
-
   # Application version used to deploy application on initial start-up of Elastic Beanstalk
   # ApplicationVersion:
   #  Type: AWS::ElasticBeanstalk::ApplicationVersion
@@ -295,7 +291,6 @@ Resources:
   #    SourceBundle:
   #      S3Bucket: !Ref ArtifactStoreS3Location
   #      S3Key: example.war
-
   # Elastic Beanstalk application configuration template
   AppConfigurationTemplate:
    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
@@ -332,9 +327,15 @@ Resources:
    Properties:
      ApplicationName:
        Ref: Application
+     EnvironmentName:
+       Ref: EnvName
      Description: AWS ElasticBeanstalk Sample Environment
      TemplateName:
        Ref: AppConfigurationTemplate
     # Apply Application Version:
     #  VersionLabel:
     #    Ref: ApplicationVersion
+Outputs:
+  EnvName:
+    Description: Name of Elastic Beanstalk deployed EC2s
+    Value: !Ref EnvName
