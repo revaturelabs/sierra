@@ -39,8 +39,13 @@ Metadata:
           - WebMinSize
           - WebMaxSize
           - KeyPair
+          - EnvName
 
 Parameters:
+  EnvName:
+    Type: String
+    Default: SierraDeployment
+    Description: Name of EC2 instance deployments
   ResourceBucket:
     Type: String
     Description: S3Bucket where resources are stored.
@@ -210,6 +215,8 @@ Resources:
           Ref: WebMinSize
         WebMaxSize:
           Ref: WebMaxSize
+        EnvName:
+          Ref: EnvName
       Tags:
         - Key: Name
           Value: ServerStack
