@@ -87,6 +87,20 @@ Resources:
                   - Fn::Sub: arn:aws:s3:::codepipeline-${AWS::Region}-*
                   - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}/*
                   - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}
+              -
+                Effect: "Allow"
+                Action:
+                  - "codebuild:StartBuild"
+                  - "codebuild:BatchGetBuilds"
+                Resource:
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/Project-${AWS::StackName}
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/Project-${AWS::StackName}:*
+              -
+                Effect: "Allow"
+                Action:
+                  - "ssm:*"
+                Resource: "*"   
+
   CodePipelineRole:
     Type: "AWS::IAM::Role"
     Properties:
