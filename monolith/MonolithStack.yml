@@ -1,0 +1,222 @@
+Description: Master Monolith Template
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups:
+      - Label: 
+          default: "Create a database (Leave defaults if DB exists)"
+        Parameters: 
+          - DBInstanceName
+          - DBInstanceType
+          - DBStorageType
+          - DBStorageSize
+          - DBMultiAZ
+          - DBSecurityGroup
+      - Label: 
+          default: "Use an existing database"
+        Parameters: 
+          - ExistingDBInstanceName
+      - Label: 
+          default: "Database configurations"
+        Parameters: 
+          - DBUsername
+          - DBPassword
+          - DBPort
+          - DBService
+          - ResourceBucket
+      - Label:
+          default: "GitHub Repository"
+        Parameters:
+          - GitHubRepo
+          - GitHubBranch
+          - GitHubUser
+          - GitHubToken
+      - Label:
+          default: "Web Server Options"
+        Parameters:
+          - WebMinSize
+          - WebMaxSize
+          - KeyPair
+          - EnvName
+
+Parameters:
+  EnvName:
+    Type: String
+    Default: SierraDeployment
+    Description: Name of EC2 instance deployments
+  ResourceBucket:
+    Type: String
+    Description: S3Bucket where resources are stored.
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
+  DBInstanceName:
+    Type: String
+    Description: New database instance name. (1-63 alphanumeric, all lowercase, first character must be letter, cannot end with hyphen, cannot have consecutive hyphens)
+    MinLength: 1
+    MaxLength: 63
+    Default: sierra-rds
+    AllowedPattern: "[a-z0-9-]*"
+  DBUsername:
+    Type: String
+    Description: Enter a valid Database username
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"    
+    #     Minimum password policy enforced by AWS:
+    # MySQL: Must contain from 8 to 41 alphanumeric characters.
+    # Oracle: Must contain from 8 to 30 alphanumeric characters.
+    # SQL Server: Must contain from 8 to 128 alphanumeric characters.
+  DBPassword:
+    Type: String
+    Description: Enter a valid Database password
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 30
+    AllowedPattern: "[a-zA-Z0-9]*"
+  DBPort:
+    Type: Number
+    Description: Enter the port used in the database URL. Defaults to port 1521 for Oracle databases.
+    Default: 1521
+    MinValue: 1
+    MaxValue: 65535
+  DBService:
+    Type: String
+    Description: Enter the service used in the database URL.
+    Default: ORCL
+    MinLength: 0
+    MaxLength: 30
+  DBInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for database
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+  DBSecurityGroup:
+    Type: String
+    Description: Name for a new database security group.
+    Default: SierraSG
+    AllowedPattern: "[a-zA-Z0-9]*"
+  DBMultiAZ: 
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  DBStorageType:
+    Type: String
+    Description: Enter one of the possible instance storage type for database; General Purpose (SSD) storage (gp2), Provisioned IOPS storage (io1), Magnetic storage (standard)
+    Default: standard
+    AllowedValues:
+      - gp2
+      - io1
+      - standard
+  DBStorageSize:
+    Type: Number
+    Description: Enter a storage size for database. 20 minimum for gp2, 10 for io1 and standard.
+    Default: 10
+    MinValue: 10
+    MaxValue: 16384
+  # WebInstanceType:
+  #   Type: String
+  #   Description: Enter one of the possible instance type for web server
+  #   AllowedValues:
+  #     - t2.micro
+  #     - t2.large
+  #     - m4.large
+  #     - c4.large
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+  GitHubToken:
+    Type: String
+    NoEcho: true
+  GitHubUser:
+    Type: String
+  # Environment:
+  #   Type: String
+  #   Description: Select the appropriate environment
+  #   AllowedValues:
+  #     - dev
+  #     - prod
+
+Resources:
+#Database Stack
+  DatabaseStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${ResourceBucket}/monolith/database.yml"
+      Parameters:
+        ResourcesBucket:
+          Ref: ResourceBucket
+        DBUsername:
+          Ref: DBUsername
+        DBPassword:
+          Ref: DBPassword
+        DBInstanceType:
+          Ref: DBInstanceType
+        ExistingDBInstanceName:
+          Ref: ExistingDBInstanceName
+        DBInstanceName:
+          Ref: DBInstanceName
+        DBPort:
+          Ref: DBPort
+        DBService:
+          Ref: DBService
+        DBSecurityGroup:
+          Ref: DBSecurityGroup
+        DBMultiAZ:
+          Ref: DBMultiAZ
+        DBStorageType:
+          Ref: DBStorageType
+        DBStorageSize:
+          Ref: DBStorageSize
+      Tags:
+        - Key: Name
+          Value: DatabaseStack
+#Server Stack
+  ServerStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL:
+        Fn::Sub: "https://s3.amazonaws.com/${ResourceBucket}/monolith/pipeline.yml"
+      Parameters: 
+        ArtifactStoreS3Location:
+          Ref: ResourceBucket
+        GitHubUser:
+          Ref: GitHubUser
+        GitHubToken:
+          Ref: GitHubToken
+        GitHubRepo:
+          Ref: GitHubRepo
+        GitHubBranch:
+          Ref: GitHubBranch
+        KeyName:
+          Ref: KeyPair
+        WebMinSize:
+          Ref: WebMinSize
+        WebMaxSize:
+          Ref: WebMaxSize
+        EnvName:
+          Ref: EnvName
+      Tags:
+        - Key: Name
+          Value: ServerStack

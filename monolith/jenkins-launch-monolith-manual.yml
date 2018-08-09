@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+# Requirements:
+#   Must have a key in desired region.
+#   Subscribe to the following site: https://aws.amazon.com/marketplace/pp/B00NNZUF3Q/
+
+
+Parameters:
+  KeyName:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+
+  # Uncomment the following lines for dynamic parameter options, and update the "Resources" field to reflect these changes.
+
+  # InstanceName:
+  #   Description: Name for your Jenkins server
+  #   Type: String
+  #   Default: Jenkins
+  #   AllowedPattern: "[-_ a-zA-Z0-9]*" 
+  #   ConstraintDescription: Alphanumeric values, dashes, spaces, and underscores.
+  # InstanceType:
+  #   Description: Instance type for Jenkins server
+  #   Type: String
+  #   Default: t2.micro
+  #   AllowedValues:
+  #     - t2.micro
+  #   ConstraintDescription: Only t2.micro allowed.
+
+
+Mappings:
+  RegionToImageId:
+    us-east-1:
+      AMI: ami-3f760640
+    us-east-2:
+      AMI: ami-27e1de42
+    us-west-1:
+      AMI: ami-6aacb60a
+    us-west-2:
+      AMI: ami-e8eca890
+    ca-central-1:
+      AMI: ami-90a82bf4
+    ap-south-1:
+      AMI: ami-bf644dd0
+    ap-northeast-1: 
+      AMI: ami-d35d9aac
+    ap-northeast-2:
+      AMI: ami-2e3e9540
+    ap-southeast-1:
+      AMI: ami-daae96a6
+    ap-southeast-2:
+      AMI: ami-0ff62b6d
+    eu-central-1:
+      AMI: ami-c0efd82b
+    eu-west-1:
+      AMI: ami-6b414712
+    eu-west-2:
+      AMI: ami-42ea0525
+    eu-west-3:
+      AMI: ami-953786e8
+    sa-east-1:
+      AMI: ami-62f7ae0e
+
+
+Resources:
+  Jenkins:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !FindInMap 
+        - RegionToImageId
+        - !Ref 'AWS::Region'
+        - AMI
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      SecurityGroups: 
+        - !Ref JenkinsSecurityGroup
+      BlockDeviceMappings: 
+          - DeviceName: '/dev/sda1'
+            Ebs: 
+              VolumeType: "gp2"
+              DeleteOnTermination: 'true'
+              VolumeSize: '10'
+      Tags:
+        - Key: Name
+          Value: JenkinsCiServer
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install groovy -y
+
+
+  JenkinsSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Classic HTTP Server permission.
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 8080
+            ToPort: 8080
+            CidrIp: 0.0.0.0/0

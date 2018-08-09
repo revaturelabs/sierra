@@ -4,11 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-troposphere = "*"
+troposphere = {extras = ["policy"]}
 
 [dev-packages]
 pytest = "*"
-"boto3" = "*"
+pyinstaller = "*"
+pywin32 = {version = "*", sys_platform = "== 'win32'"}
+"flake8" = "*"
 
 [requires]
 python_version = "3.6"

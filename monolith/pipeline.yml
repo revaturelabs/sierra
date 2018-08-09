@@ -1,0 +1,341 @@
+Description: Create a CodePipeline to include Nested CloudFormation, CodeBuild and Approval steps.
+Parameters:
+  ArtifactStoreS3Location:
+    Type: String
+    Description: Name of the S3 bucket to store CodePipeline artifact.
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+  GitHubToken:
+    Type: String
+    NoEcho: true
+  GitHubUser:
+    Type: String
+  KeyName:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Choose a valid KeyPair.
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group
+  EnvName:
+    Type: String
+    Default: SierraDeployment
+    Description: Name of EC2 instance deployments
+Resources:
+  CodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        Fn::Sub: CodeBuildRole-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        -
+          PolicyName: "CodeBuildNestedCFNAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudformation:Get*"
+                  - "cloudformation:Describe*"
+                  - "cloudformation:List*"
+                Resource:
+                  - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Test-${AWS::StackName}*
+              -
+                Effect: "Allow"
+                Action:
+                  - "ec2:Describe*"
+                  - "cloudformation:ValidateTemplate"
+                  - "elasticloadbalancing:Describe*"
+                  - "autoscaling:Describe*"
+                  - "iam:Get*"
+                  - "iam:List*"
+                  - "logs:Describe*"
+                  - "logs:Get*"
+                  - "tag:Get*"
+                Resource:
+                  - "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+              -
+                Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::codepipeline-${AWS::Region}-*
+                  - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}/*
+                  - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}
+              -
+                Effect: "Allow"
+                Action:
+                  - "codebuild:StartBuild"
+                  - "codebuild:BatchGetBuilds"
+                Resource:
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/Project-${AWS::StackName}
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/Project-${AWS::StackName}:*
+              -
+                Effect: "Allow"
+                Action:
+                  - "ssm:*"
+                Resource: "*"   
+  CodePipelineRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        Fn::Sub: CodePipelineRole-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        -
+          PolicyName: "CodePipelineNestedCFNAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                  - "s3:PutObject"
+                  - "s3:GetBucketPolicy"
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}
+                  - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}/*
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudformation:CreateChangeSet"
+                  - "cloudformation:CreateStack"
+                  - "cloudformation:CreateUploadBucket"
+                  - "cloudformation:DeleteStack"
+                  - "cloudformation:Describe*"
+                  - "cloudformation:List*"
+                  - "cloudformation:UpdateStack"
+                  - "cloudformation:ValidateTemplate"
+                  - "cloudformation:ExecuteChangeSet"
+                Resource:
+                  - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Test-${AWS::StackName}*
+                  - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/UAT-${AWS::StackName}*
+                  - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Prod-${AWS::StackName}*
+              -
+                Effect: "Allow"
+                Action:
+                  - "codebuild:StartBuild"
+                  - "codebuild:BatchGetBuilds"
+                Resource:
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/Project-${AWS::StackName}
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/Project-${AWS::StackName}:*
+              -
+                Effect: "Allow"
+                Action:
+                  - "elasticbeanstalk:*"
+                  - "codedeploy:*"
+                  - "ec2:*"
+                  - "elasticloadbalancing:*"
+                  - "autoscaling:*"
+                  - "cloudwatch:*"
+                  - "s3:*"
+                  - "sns:*"
+                  - "cloudformation:*"
+                  - "rds:*"
+                  - "sqs:*"
+                  - "ecs:*"
+                Resource: "*"  
+  
+  ProjectBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: 
+        Fn::Sub: Project-${AWS::StackName}
+      Description: Build Project
+      ServiceRole:
+        Fn::GetAtt: [ CodeBuildRole, Arn ]
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/java:openjdk-8
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 15
+      Tags:
+        - Key: Name
+          Value: Build
+  # CodePipeline for building and deployment of web application
+  DeployPipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      ArtifactStore:
+        Location:
+          Ref: ArtifactStoreS3Location
+        Type: S3
+      Name: 
+        Fn::Sub: Pipeline-${AWS::StackName}
+      RoleArn:
+          Fn::GetAtt: [ CodePipelineRole, Arn ]
+      Stages:
+        - Name: Source
+          Actions:
+          - Name: Source
+            ActionTypeId:
+              Category: Source
+              Owner: ThirdParty
+              Version: 1
+              Provider: GitHub
+            Configuration:
+              Owner:
+                Ref: GitHubUser
+              Repo: 
+                Ref: GitHubRepo
+              Branch: 
+                Ref: GitHubBranch
+              OAuthToken: 
+                Ref: GitHubToken
+            OutputArtifacts: [Name: Source]
+            RunOrder: 1
+        - Name: Build
+          Actions:
+          - Name: Build
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: 1
+              Provider: CodeBuild
+            InputArtifacts: [Name: Source]
+            OutputArtifacts: [Name: BuildOut]
+            Configuration:
+              ProjectName: 
+                Ref: ProjectBuild
+            RunOrder: 1
+        - Name: Deploy
+          Actions:
+          - Name: Deploy
+            ActionTypeId:
+              Category: Deploy 
+              Owner: AWS 
+              Version: 1 
+              Provider: ElasticBeanstalk
+            InputArtifacts:
+              - Name: BuildOut
+            Configuration:
+              ApplicationName: !Ref Application
+              EnvironmentName: !Ref TomcatEnvironment
+  # Security group for Elastic Beanstalk server.
+  # Port 8080 is required for Tomcat
+  # Port 22 is required for SSH
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: Tomcat SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+  # Elastic Beanstalk application
+  Application:
+   Type: AWS::ElasticBeanstalk::Application
+   Properties:
+     Description: AWS Elastic Beanstalk Application
+  # Application version used to deploy application on initial start-up of Elastic Beanstalk
+  # ApplicationVersion:
+  #  Type: AWS::ElasticBeanstalk::ApplicationVersion
+  #  Properties:
+  #    ApplicationName:
+  #      Ref: Application
+  #    Description: AWS ElasticBeanstalk Sample Application Version
+  #    SourceBundle:
+  #      S3Bucket: !Ref ArtifactStoreS3Location
+  #      S3Key: example.war
+  # Elastic Beanstalk application configuration template
+  AppConfigurationTemplate:
+   Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+   Properties:
+     ApplicationName:
+       Ref: Application
+     Description: AWS ElasticBeanstalk Sample Configuration Template
+     OptionSettings:
+    #  Configure Environment Variables:
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: (ENVIRONMENT_VARIABLE)
+    #     Value: (VALUE)
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: SecurityGroups
+        Value:
+          Ref: WebAppSecurityGroup
+      - Namespace: aws:autoscaling:asg
+        OptionName: MinSize
+        Value: !Ref WebMinSize
+      - Namespace: aws:autoscaling:asg
+        OptionName: MaxSize
+        Value: !Ref WebMaxSize
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: LoadBalanced
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName
+        Value: !Ref KeyName
+     SolutionStackName: 64bit Amazon Linux 2018.03 v3.0.1 running Tomcat 8 Java 8
+     
+  # Elastic Beanstalk Tomcat environment
+  TomcatEnvironment:
+   Type: AWS::ElasticBeanstalk::Environment
+   Properties:
+     ApplicationName:
+       Ref: Application
+     EnvironmentName:
+       Ref: EnvName
+     Description: AWS ElasticBeanstalk Sample Environment
+     TemplateName:
+       Ref: AppConfigurationTemplate
+    # Apply Application Version:
+    #  VersionLabel:
+    #    Ref: ApplicationVersion
+Outputs:
+  EnvName:
+    Description: Name of Elastic Beanstalk deployed EC2s
+    Value: !Ref EnvName

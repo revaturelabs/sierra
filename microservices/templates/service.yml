@@ -1,6 +1,108 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Container Settings"
+        Parameters:
+          - ContainerName
+          - ContainerImage
+      - Label:
+          default: "Service Settings"
+        Parameters:
+          - ServiceName
+          - Cluster
+          - UseLoadBalancing
+          - TargetGroup
+    ParameterLabels:
+      ContainerName:
+        default: "Container Name"
+      ContainerImage:
+        default: "Container Image"
+      ServiceName:
+        default: "Service Name"
+      TargetGroup:
+        default: "ELB Target Group"
+
+
+Parameters:
+
+  ContainerName:
+    Type: String
+
+  ContainerImage:
+    Type: String
+
+  ContainerPort:
+    Type: Number
+
+  ServiceName:
+    Type: String
+
+  Cluster:
+    Type: String
+
+  TargetGroup: # Target group ARN, not the name
+    Type: String
+
+
 Resources:
-  Empty:
-    Type: AWS::S3::Bucket
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+        - EC2
+      NetworkMode: bridge
+      Cpu: 128
+      Memory: 256
+      ExecutionRoleArn: !Ref TaskExecutionRole
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref ContainerImage
+          Memory: 256
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          # Environment: Env variables to give to container
+          # EntryPoint:
+          # MountPoints
+          #  ---- LOGGING ----
+          # LogConfiguration, UNIMPLEMENTED
+      # Family:
+      # Volumes:
+      # TaskRoleArn: permissions for task
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: EC2
+      LoadBalancers:
+        - ContainerName: !Ref ContainerName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+      # DeploymentConfiguration
+      # Role: IAM roles to make calls to Load balancer
+      #
