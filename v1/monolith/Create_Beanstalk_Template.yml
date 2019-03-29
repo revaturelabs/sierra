@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Creates a beanstalk environment that contains a specific programming language environment.
+
+Parameters:
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Choose a valid KeyPair.
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group
+  EnvName:
+    Type: String
+    Default: SierraEnvironment
+    Description: Name of EC2 instance deployments
+  Platform:
+    Type: String
+    Default: Tomcat
+    Description: Select the appropriate platform type.
+    AllowedValues:
+      - Tomcat
+      - Node.JS
+      - .Net
+      - Ruby
+      - Python
+      - PHP
+
+Mappings:
+  PlatformType: 
+    Tomcat: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v3.1.1 running Tomcat 8.5 Java 8
+    Node.JS: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v4.8.1 running Node.js
+    .Net: 
+      SolutionStackName: 64bit Windows Server 2016 v2.0.2 running IIS 10.0
+    Ruby: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.9.1 running Ruby 2.6 (Puma)
+    Python: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.1 running Python 3.6
+    PHP: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.7 running PHP 7.2
+
+Resources:
+  # Security group for Elastic Beanstalk server.
+  # Port 8080 is required for Tomcat
+  # Port 22 is required for SSH
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: Platform SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+  # Elastic Beanstalk application
+  Application:
+   Type: AWS::ElasticBeanstalk::Application
+   Properties:
+     Description: AWS Elastic Beanstalk Application
+  # Application version used to deploy application on initial start-up of Elastic Beanstalk
+  # ApplicationVersion:
+  #  Type: AWS::ElasticBeanstalk::ApplicationVersion
+  #  Properties:
+  #    ApplicationName:
+  #      Ref: Application
+  #    Description: AWS ElasticBeanstalk Sample Application Version
+  #    SourceBundle:
+  #      S3Bucket: !Ref ArtifactStoreS3Location
+  #      S3Key: example.war
+  # Elastic Beanstalk application configuration template
+  AppConfigurationTemplate:
+   Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+   Properties:
+     ApplicationName:
+       Ref: Application
+     Description: AWS ElasticBeanstalk Sample Configuration Template
+     OptionSettings:
+    #  Configure Environment Variables:
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: (ENVIRONMENT_VARIABLE)
+    #     Value: (VALUE)
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: SecurityGroups
+        Value:
+          Ref: WebAppSecurityGroup
+      - Namespace: aws:autoscaling:asg
+        OptionName: MinSize
+        Value: !Ref WebMinSize
+      - Namespace: aws:autoscaling:asg
+        OptionName: MaxSize
+        Value: !Ref WebMaxSize
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: LoadBalanced
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName
+        Value: !Ref KeyPair
+     SolutionStackName: !FindInMap [PlatformType,!Ref Platform, SolutionStackName]
+     
+  # Elastic Beanstalk environment
+  PlatformEnvironment:
+   Type: AWS::ElasticBeanstalk::Environment
+   Properties:
+     ApplicationName:
+       Ref: Application
+     EnvironmentName:
+       Ref: EnvName
+     Description: AWS ElasticBeanstalk Sample Environment
+     TemplateName:
+       Ref: AppConfigurationTemplate
+    # Apply Application Version:
+    #  VersionLabel:
+    #    Ref: ApplicationVersion
+Outputs:
+  EnvName:
+    Description: Name of Elastic Beanstalk deployed EC2s
+    Value: !Ref EnvName
