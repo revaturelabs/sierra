@@ -5,10 +5,10 @@ Description: Contains the VPC, subnets, Tomcat server, ELB, auto-scaling-group.
 Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
-    Description: Enter a valid KeyPair Name
+    Description: Enter a valid KeyPair Name.
   WebInstanceType:
     Type: String
-    Description: Enter one of the possible instance type for web server
+    Description: Enter one of the possible instance type for web server.
     AllowedValues:
       - t2.micro
       - t2.large
@@ -16,19 +16,36 @@ Parameters:
       - c4.large
   WebMinSize:
     Type: String
-    Description: Minimum number of instances in auto scaling group
+    Description: Minimum number of instances in auto scaling group.
   WebMaxSize:
     Type: String
-    Description: Maximum number of instances in auto scaling group
+    Description: Maximum number of instances in auto scaling group.
   Environment:
     Type: String
-    Description: Select the appropriate environment
+    Description: Select the appropriate environment.
     AllowedValues:
       - dev
       - prod
-    
+  AutoscalingAvailZone:
+    Type: List<AWS::EC2::AvailabilityZone::Name>
+    Description: Select the availability zone of your private subnet for use in the autoscaling group.
+  
+  CustomPrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select a private subnet in the custom VPC.
+  
+  CustomPublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select a public subnet in the custom VPC.
+
+  CustomVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select an ID of a VPC that exists in the current region.
+
 Conditions:
   CreateProdResources: !Equals [ !Ref Environment, prod ]
+  NoVPCexists: !Equals ["", !Ref CustomVPC]
+
 
 
 Mappings:
@@ -63,9 +80,11 @@ Mappings:
       ImageId: ami-2cf54551
     sa-east-1:
       ImageId: ami-6dca9001
+  
   TomcatAmi:
     us-east-1:
-      ImageId: ami-009be716
+      ImageId: ami-0de53d8956e8dcf80
+  
   RegionToNatId:
     us-east-1:
       ImageId: ami-01623d7b
@@ -98,17 +117,17 @@ Mappings:
     sa-east-1:
       ImageId: ami-0b81dc67
 
-  
-
 
 Resources:
   #VPC Set up
   VPC:
     Type: 'AWS::EC2::VPC'
+    Condition: NoVPCexists
     Properties:
       CidrBlock: 10.0.0.0/16
   PublicSubnet:
     Type: 'AWS::EC2::Subnet'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -118,6 +137,7 @@ Resources:
           Value: Public Subnet
   PrivateSubnet:
     Type: 'AWS::EC2::Subnet'
+    Condition: NoVPCexists
     DependsOn: PublicSubnet
     Properties:
       VpcId: 
@@ -130,12 +150,14 @@ Resources:
       AvailabilityZone: 
         Fn::GetAtt: [PublicSubnet, AvailabilityZone]
   InternetGateway:
+    Condition: NoVPCexists
     Type: 'AWS::EC2::InternetGateway'
     Properties: {}
 
   #Routes
   PublicSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -144,6 +166,7 @@ Resources:
           Value: Public Subnet Route Table.
   PrivateSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -152,6 +175,7 @@ Resources:
           Value: Private Subnet Route Table.
   RouteToInternetGateway:
     Type: 'AWS::EC2::Route'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PublicSubnetRouteTable
@@ -160,6 +184,7 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
   RouteToNatInstance:
     Type: 'AWS::EC2::Route'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PrivateSubnetRouteTable
@@ -170,6 +195,7 @@ Resources:
   #Routing associations
   PublicSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PublicSubnetRouteTable
@@ -177,6 +203,7 @@ Resources:
         Ref: PublicSubnet
   PrivateSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PrivateSubnetRouteTable
@@ -184,6 +211,7 @@ Resources:
         Ref: PrivateSubnet
   InternetGatewayAttachment:
     Type: 'AWS::EC2::VPCGatewayAttachment'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -203,8 +231,7 @@ Resources:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: 
-            Ref: PublicSubnet
+          SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
           GroupSet:
             - Ref: WebAppSecurityGroup
       Tags:
@@ -222,8 +249,7 @@ Resources:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: 
-            Ref: PublicSubnet
+          SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
           GroupSet:
             - Ref: WebAppSecurityGroup
       BlockDeviceMappings:
@@ -248,7 +274,7 @@ Resources:
         - DeviceIndex: 0
           AssociatePublicIpAddress: false
           DeleteOnTermination: true
-          SubnetId: !Ref PrivateSubnet
+          SubnetId: !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet]
           GroupSet:
             - !Ref WebAppSecurityGroup
       Tags:
@@ -257,9 +283,45 @@ Resources:
       UserData: 
         Fn::Base64: |
           #!/bin/bash
-          yum -y update
-          yum -y install httpd
-          service httpd start
+          sudo yum -y update
+          sudo yum -y install httpd
+          sudo service httpd start
+          sudo yum -y install java-1.8.0-openjdk-devel
+          sudo groupadd tomcat
+          sudo useradd -M -s /bin/nologin -g tomcat -d /opt/tomcat tomcat
+          wget http://mirror.tcpdiag.net/apache/tomcat/tomcat-8/v8.0.33/bin/apache-tomcat-8.0.33.tar.gz
+          sudo mkdir /opt/tomcat
+          sudo tar xvf apache-tomcat-8*tar.gz -C /opt/tomcat --strip-components=1
+          cd /opt/tomcat
+          sudo chgrp -R tomcat conf
+          sudo chmod g+rwx conf
+          sudo chmod g+r conf/*
+          sudo chown -R tomcat webapps/ work/ temp/ logs/
+          echo "# Systemd unit file for tomcat\n
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=syslog.target network.target
+
+          [Service]
+          Type=forking
+
+          Environment=JAVA_HOME=/usr/lib/jvm/jre
+          Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+          Environment=CATALINA_HOME=/opt/tomcat/
+          Environment=CATALINA_BASE=/opt/tomcat/
+          Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC'
+          Environment='JAVA_OPTS=-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom'
+
+          ExecStart=/opt/tomcat/bin/startup.sh
+          ExecStop=/bin/kill -15 $MAINPID
+
+          User=tomcat
+          Group=tomcat
+
+          [Install]
+          WantedBy=multi-user.target" >> /etc/systemd/system/tomcat.service
+          sudo systemctl daemon-reload
+          
 
 
 
@@ -272,7 +334,7 @@ Resources:
       Name: 'load-balancer'
       Scheme: internet-facing
       Subnets: 
-        - Ref: PublicSubnet
+        - !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet] 
       Tags:
         - Key: Name
           Value: 'this-loadbalancer'
@@ -303,8 +365,7 @@ Resources:
       Tags:
         - Key: Name
           Value: alb-tg        
-      VpcId: 
-        Ref: VPC
+      VpcId: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
 
 
   #Autoscaling configuration
@@ -313,7 +374,7 @@ Resources:
       Condition: CreateProdResources
       Properties:
         AvailabilityZones: 
-          - Fn::GetAtt: [PrivateSubnet, AvailabilityZone]
+          - !If [NoVPCexists, !GetAtt PrivateSubnet.AvailabilityZone, !Ref AutoscalingAvailZone] 
           #Nice
         #LaunchConfigurationName: Ref: Ec2Instance
         InstanceId: 
@@ -377,25 +438,26 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-      VpcId: 
-        Ref: VPC
+      VpcId: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
 
 Outputs:
   VpcId:
     Description: The ID of the VPC.
-    Value:
-      Ref: VPC
+    Value: !If [NoVPCexists, VPC, CustomVPC]
     Export:
       Name: VpcId
   PrivateSubnetId:
     Description: The ID of the private subnet.
-    Value: 
-      Ref: PrivateSubnet
+    Value: !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet]
     Export:
       Name: PrivateSubnetId
   PublicSubnetId:
     Description: The ID of the public subnet.
-    Value: 
-      Ref: PublicSubnet
+    Value: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
     Export:
       Name: PublicSubnetId
+  # PrivateSubnetAvailabilityZone:
+  #   Description: The AZ of the private subnet.
+  #   Value: !GetAtt 
+  #   Export:
+  #     Name: PrivateSubnetAvailabilityZone
