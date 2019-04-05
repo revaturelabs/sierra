@@ -11,5 +11,5 @@ phases:
 artifacts:
     files:
         - caliber/target/caliber.war
-        - .ebextensions/**/*
+        - .ebextensions/**/* #needed for update
     discard-paths: yes
