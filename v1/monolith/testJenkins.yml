@@ -10,9 +10,6 @@ Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Enter a valid KeyPair Name
-  EnvironmentVariable:
-    Type: String
-    Description: Enter a KEY:Value
 
 Mappings:
   RegionToImageId:
@@ -39,7 +36,7 @@ Mappings:
     'eu-central-1':
       ImageId: 'ami-7c4f7097'
     'us-east-1':
-      ImageId: 'ami-b70554c8'
+      ImageId: 'ami-0fecdd48f46904f51'
     'us-east-2':
       ImageId: 'ami-8c122be9'
     'us-west-1':
@@ -57,11 +54,11 @@ Resources:
         Ref: KeyPair
       NetworkInterfaces:
         - DeviceIndex: 0
-          AssociatePublicIpAddress: false
+          AssociatePublicIpAddress: true
           DeleteOnTermination: true
           SubnetId: !ImportValue "PublicSubnetId"
           GroupSet:
-            - !Ref WebAppSecurityGroup
+            - !ImportValue WebAppSecurityGroupId
       UserData:
         Fn::Base64:
           !Sub
@@ -69,57 +66,31 @@ Resources:
             #!/bin/bash
             sudo su
             cd ~
-            echo ${Bucket} >> file.txt
-            echo ${File} >> file.txt
             wget ${Bucket}
             chmod 760 ${File}
             cat ${File} >> /etc/environment
-            echo ${Variable} >> /etc/environment
             source /etc/environment
             cat ${File} >> /usr/share/tomcat/conf/tomcat.conf
             source /usr/share/tomcat/conf/tomcat.conf
             yum -y install git
             wget https://s3.amazonaws.com/buckywucky/Project2Auto.xml
             service tomcat start
-            mkdir shared
             yum install -y amazon-efs-utils
+            mkdir shared
             echo "${EFSId}:/ /root/shared efs defaults,_netdev 0 0" >> /etc/fstab
-            mount -t ${EFSId}.us-east-1.amazonaws.com:/ shared
+            mount -t efs ${EFSId}:/ shared
             sleep 60
             cat Project2Auto.xml | java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin create-job AutoProd2
             java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
             java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
             sleep 65
-            cp  -a /usr/share/tomcat/webapps/ERS.war shared/
+            echo "* * * * * cp -a /usr/share/tomcat/webapps/ERS.war shared/ " >> testCron
+            crontab testCron
           - {
             Bucket: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/", !Ref FileName ] ],
             File: !Ref FileName,
-            Variable: !Ref EnvironmentVariable
             EFSId: !ImportValue "EFSId"
             }
-
-  WebAppSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties: 
-      GroupDescription: SSH and HTTP and 8080 and Oracle RDS
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 1521
-          ToPort: 1521
-          CidrIp: 0.0.0.0/0
-      VpcId: !ImportValue "VpcId"
 
 Outputs:
   InstanceID:

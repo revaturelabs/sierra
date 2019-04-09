@@ -3,12 +3,18 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: Contains the VPC, subnets, Tomcat server, ELB, auto-scaling-group.
 
 Parameters:
+  ResourceBucket:
+    Type: String
+    Description: S3Bucket where resources are stored.
+  FileName:
+    Type: String
+    Description: FileName of file containing environment variables
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
-    Description: Enter a valid KeyPair Name.
+    Description: Enter a valid KeyPair Name
   WebInstanceType:
     Type: String
-    Description: Enter one of the possible instance type for web server.
+    Description: Enter one of the possible instance type for web server
     AllowedValues:
       - t2.micro
       - t2.large
@@ -16,32 +22,44 @@ Parameters:
       - c4.large
   WebMinSize:
     Type: String
-    Description: Minimum number of instances in auto scaling group.
+    Description: Minimum number of instances in auto scaling group
   WebMaxSize:
     Type: String
-    Description: Maximum number of instances in auto scaling group.
+    Description: Maximum number of instances in auto scaling group
   Environment:
     Type: String
-    Description: Select the appropriate environment.
+    Description: Select the appropriate environment
     AllowedValues:
       - dev
       - prod
   AutoscalingAvailZone:
-    Type: List<AWS::EC2::AvailabilityZone::Name>
-    Description: Select the availability zone of your private subnet for use in the autoscaling group.
-  
+   # Type: List<AWS::EC2::AvailabilityZone::Name>
+   # Default: AWS::NoValue
+   Type: String
+   Default: ""
+   Description: Enter the availability zone of your private subnet for use in the autoscaling group.
+
   CustomPrivateSubnet:
-    Type: AWS::EC2::Subnet::Id
-    Description: Select a private subnet in the custom VPC.
-  
+    # Type: AWS::EC2::Subnet::Id
+    # Default: AWS::NoValue
+    Type: String
+    Default: ""
+    Description: Enter the private subnet's ID in the custom VPC.
+
   CustomPublicSubnet:
-    Type: AWS::EC2::Subnet::Id
-    Description: Select a public subnet in the custom VPC.
+    # Type: AWS::EC2::Subnet::Id
+    # Default: AWS::NoValue
+    Type: String
+    Default: ""
+    Description: Enter the public subnet's ID in the custom VPC.
 
   CustomVPC:
-    Type: AWS::EC2::VPC::Id
-    Description: Select an ID of a VPC that exists in the current region.
-
+    # Type: AWS::EC2::VPC::Id
+    # Default: AWS::NoValue
+    Type: String
+    Default: ""
+    Description: Enter the ID of a VPC that exists in the current region.
+    
 Conditions:
   CreateProdResources: !Equals [ !Ref Environment, prod ]
   NoVPCexists: !Equals ["", !Ref CustomVPC]
@@ -125,6 +143,8 @@ Resources:
     Condition: NoVPCexists
     Properties:
       CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
   PublicSubnet:
     Type: 'AWS::EC2::Subnet'
     Condition: NoVPCexists
@@ -270,27 +290,164 @@ Resources:
       - IpProtocol: tcp
         FromPort: '2049'
         ToPort: '2049'
-        CidrIp: 0.0.0.0/0
+        SourceSecurityGroupId: !Ref WebAppSecurityGroup
   FileSystem:
     Type: AWS::EFS::FileSystem
+    DependsOn: MountTargetSecurityGroup
     Properties:
       PerformanceMode: generalPurpose
   MountTarget1:
     Type: AWS::EFS::MountTarget
+    DependsOn: FileSystem
     Properties:
       FileSystemId:
         Ref: FileSystem
       SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
       SecurityGroups:
       - Ref: MountTargetSecurityGroup
-  MountTarget2:
-    Type: AWS::EFS::MountTarget
+
+  TomcatServer:
+    Type: 'AWS::EC2::Instance'
     Properties:
-      FileSystemId:
-        Ref: FileSystem
-      SubnetId: !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet]
-      SecurityGroups:
-      - Ref: MountTargetSecurityGroup
+      ImageId: !FindInMap [TomcatAmi, !Ref 'AWS::Region', ImageId]
+      InstanceType: 
+        Ref: WebInstanceType
+      KeyName: 
+        Ref: KeyPair
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: TomcatServer
+      UserData: 
+        Fn::Base64:
+          !Sub
+          - |
+            #!/bin/bash
+            sudo su
+            amazon-linux-extras install -y tomcat8.5
+            cd ~
+            wget ${Bucket}
+            chmod 760 ${File}
+            cat ${File} >> /etc/environment
+            source /etc/environment
+            cat ${File} >> /usr/share/tomcat/conf/tomcat.conf
+            source /usr/share/tomcat/conf/tomcat.conf
+            service tomcat start
+            yum install -y amazon-efs-utils
+            mkdir shared
+            echo "${EFSId}:/ /root/shared efs defaults,_netdev 0 0" >> /etc/fstab
+            mount -t efs ${EFSId}:/ shared
+            echo "* * * * * cp -a /root/shared/ERS.war /usr/share/tomcat/webapps " >> testCron
+            crontab testCron
+          - {
+            Bucket: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/", !Ref FileName ] ],
+            File: !Ref FileName,
+            EFSId: !Ref FileSystem
+            }
+
+  #Load balancer properties
+  Elb:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Condition: CreateProdResources
+    Properties:
+      Type: network
+      Name: 'load-balancer'
+      Scheme: internet-facing
+      Subnets: 
+        - !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet] 
+      Tags:
+        - Key: Name
+          Value: 'this-loadbalancer'
+
+  ElbListener:
+    Type : AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateProdResources
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: 
+            Ref: ElbTargetGroup
+      LoadBalancerArn: 
+        Ref: Elb
+      Port: 80
+      Protocol: TCP
+
+  ElbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: CreateProdResources
+    Properties:
+      Name: 'targetsForELB'
+      Port: 80
+      Protocol: TCP
+      Targets:
+        - Id: 
+            Ref: TomcatServer
+      Tags:
+        - Key: Name
+          Value: alb-tg        
+      VpcId: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
+
+
+  #Autoscaling configuration
+  EC2AutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Condition: CreateProdResources
+      Properties:
+        AvailabilityZones: 
+          - !If [NoVPCexists, !GetAtt PrivateSubnet.AvailabilityZone, !Ref AutoscalingAvailZone] 
+          #Nice
+        #LaunchConfigurationName: Ref: Ec2Instance
+        InstanceId: 
+          Ref: TomcatServer
+        MinSize: 
+          Ref: WebMinSize
+        MaxSize: 
+          Ref: WebMaxSize
+        DesiredCapacity: 
+          Ref: WebMinSize
+        HealthCheckGracePeriod: 300
+        TargetGroupARNs:
+          - Ref: ElbTargetGroup
+        Tags:
+          - Key: Name
+            Value: 'auto-scaling-group'
+            PropagateAtLaunch: true
+
+  ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Condition: CreateProdResources
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: EC2AutoScalingGroup
+      Cooldown: '1'
+      ScalingAdjustment: '1'
+
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateProdResources
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '60'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance
+        is down
+      Period: '60'
+      AlarmActions:
+      - Ref: ScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: EC2AutoScalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
 
   #Security Group
   WebAppSecurityGroup:
@@ -333,17 +490,14 @@ Outputs:
     Export:
       Name: PublicSubnetId
   EFSId:
-    Description: The ID of the EFS
-    Value: !Ref FileSystem
+    Description: The ID of the Elastic File System
+    Value:
+      Ref: FileSystem
     Export:
       Name: EFSId
-  AvailabilityZone:
-    Description: The AvailabilityZones available
-    Value: !If [NoVPCexists, !GetAtt PrivateSubnet.AvailabilityZone, !Ref AutoscalingAvailZone]
+  WebAppSecurityGroupId:
+    Description: The ID of the WebAppSecurityGroup
+    Value:
+      Ref: WebAppSecurityGroup
     Export:
-      Name: SubnetAvailabilityZone
-  # PrivateSubnetAvailabilityZone:
-  #   Description: The AZ of the private subnet.
-  #   Value: !GetAtt 
-  #   Export:
-  #     Name: PrivateSubnetAvailabilityZone
+      Name: WebAppSecurityGroupId
