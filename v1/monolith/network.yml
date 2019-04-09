@@ -264,8 +264,7 @@ Resources:
   MountTargetSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId:
-        Ref: VPC
+      VpcId: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
       GroupDescription: Security group for mount target
       SecurityGroupIngress:
       - IpProtocol: tcp
@@ -276,17 +275,12 @@ Resources:
     Type: AWS::EFS::FileSystem
     Properties:
       PerformanceMode: generalPurpose
-      FileSystemTags:
-      - Key: Name
-        Value:
-          Ref: VolumeName
   MountTarget1:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId:
         Ref: FileSystem
-      SubnetId:
-        Ref: PublicSubnet
+      SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
       SecurityGroups:
       - Ref: MountTargetSecurityGroup
   MountTarget2:
@@ -294,8 +288,7 @@ Resources:
     Properties:
       FileSystemId:
         Ref: FileSystem
-      SubnetId:
-        Ref: PrivateSubnet
+      SubnetId: !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet]
       SecurityGroups:
       - Ref: MountTargetSecurityGroup
 
@@ -326,7 +319,7 @@ Resources:
 Outputs:
   VpcId:
     Description: The ID of the VPC.
-    Value: !If [NoVPCexists, VPC, CustomVPC]
+    Value: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
     Export:
       Name: VpcId
   PrivateSubnetId:
