@@ -1,0 +1,98 @@
+Description: Master Monolith Template
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  ResourceBucket:
+    Type: String
+    Description: S3Bucket where resources are stored.
+  FileName:
+    Type: String
+    Description: FileName of file containing environment variables
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
+  EnvironmentVariable:
+    Type: String
+    Description: Enter a KEY=Value
+  WebInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for web server.
+    AllowedValues:
+      - t2.micro
+      - t2.large
+      - m4.large
+      - c4.large
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group.
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group.
+  Environment:
+    Type: String
+    Description: Select the appropriate environment.
+    AllowedValues:
+      - dev
+      - prod
+  AutoscalingAvailZone:
+    Type: List<AWS::EC2::AvailabilityZone::Name>
+    Description: Select the availability zone of your private subnet for use in the autoscaling group.
+  
+  CustomPrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select a private subnet in the custom VPC.
+  
+  CustomPublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select a public subnet in the custom VPC.
+
+  CustomVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select an ID of a VPC that exists in the current region.
+
+Resources:
+  NetworkStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/network.yml" ] ]
+      Parameters: 
+        KeyPair:
+          Ref: KeyPair
+        WebInstanceType:
+          Ref: WebInstanceType
+        WebMinSize:
+          Ref: WebMinSize
+        WebMaxSize:
+          Ref: WebMaxSize
+        Environment:
+          Ref: Environment
+        AutoscalingAvailZone:
+          Ref: AutoscalingAvailZone
+        CustomPrivateSubnet:
+          Ref: CustomPrivateSubnet
+        CustomPublicSubnet:
+          Ref: CustomPublicSubnet
+        CustomVPC:
+          Ref: CustomVPC
+
+  JenkinsStack:
+    Type: "AWS::CloudFormation::Stack"
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/testJenkins.yml" ] ]
+      Parameters: 
+        KeyPair:
+          Ref: KeyPair
+        ResourceBucket:
+          Ref: ResourceBucket
+        FileName:
+          Ref: FileName
+        EnvironmentVariable:
+          Ref: EnvironmentVariable
+
+  CloudWatchStack:
+    Type: "AWS::CloudFormation::Stack"
+    DependsOn: JenkinsStack
+    Properties:
+      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/testCloudWatch.yml" ]]

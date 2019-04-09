@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  ResourceBucket:
+    Type: String
+    Description: S3Bucket where resources are stored.
+  FileName:
+    Type: String
+    Description: FileName of file containing environment variables
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
+  EnvironmentVariable:
+    Type: String
+    Description: Enter a KEY:Value
+
+Mappings:
+  RegionToImageId:
+    'ap-south-1':
+      ImageId: 'ami-d783a9b8'
+    'eu-west-3':
+      ImageId: 'ami-2cf54551'
+    'eu-west-2':
+      ImageId: 'ami-b8b45ddf'
+    'eu-west-1':
+      ImageId: 'ami-466768ac'
+    'ap-northeast-2':
+      ImageId: 'ami-afd86dc1'
+    'ap-northeast-1':
+      ImageId: 'ami-e99f4896'
+    'sa-east-1':
+      ImageId: 'ami-6dca9001'
+    'ca-central-1':
+      ImageId: 'ami-0ee86a6a'
+    'ap-southeast-1':
+      ImageId: 'ami-05868579'
+    'ap-southeast-2':
+      ImageId: 'ami-39f8215b'
+    'eu-central-1':
+      ImageId: 'ami-7c4f7097'
+    'us-east-1':
+      ImageId: 'ami-b70554c8'
+    'us-east-2':
+      ImageId: 'ami-8c122be9'
+    'us-west-1':
+      ImageId: 'ami-e0ba5c83'
+    'us-west-2':
+      ImageId: 'ami-a9d09ed1'
+
+Resources:
+  OracleClient:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      InstanceType: t2.micro
+      KeyName: 
+        Ref: KeyPair
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: false
+          DeleteOnTermination: true
+          SubnetId: !ImportValue "PublicSubnetId"
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub
+          - |
+            #!/bin/bash
+            sudo su
+            cd ~
+            echo ${Bucket} >> file.txt
+            echo ${File} >> file.txt
+            wget ${Bucket}
+            chmod 760 ${File}
+            cat ${File} >> /etc/environment
+            echo ${Variable} >> /etc/environment
+            source /etc/environment
+            cat ${File} >> /usr/share/tomcat/conf/tomcat.conf
+            source /usr/share/tomcat/conf/tomcat.conf
+            yum -y install git
+            wget https://s3.amazonaws.com/buckywucky/Project2Auto.xml
+            service tomcat start
+            mkdir shared
+            yum install -y amazon-efs-utils
+            echo "${EFSId}:/ /root/shared efs defaults,_netdev 0 0" >> /etc/fstab
+            mount -t ${EFSId}.us-east-1.amazonaws.com:/ shared
+            sleep 60
+            cat Project2Auto.xml | java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin create-job AutoProd2
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
+            sleep 65
+            cp  -a /usr/share/tomcat/webapps/ERS.war shared/
+          - {
+            Bucket: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/", !Ref FileName ] ],
+            File: !Ref FileName,
+            Variable: !Ref EnvironmentVariable
+            EFSId: !ImportValue "EFSId"
+            }
+
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: SSH and HTTP and 8080 and Oracle RDS
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 1521
+          ToPort: 1521
+          CidrIp: 0.0.0.0/0
+      VpcId: !ImportValue "VpcId"
+
+Outputs:
+  InstanceID:
+    Description: The Instance ID
+    Value: !Ref OracleClient
+    Export:
+      Name: "EC2ID"

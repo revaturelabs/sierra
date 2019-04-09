@@ -5,10 +5,10 @@ Description: Contains the VPC, subnets, Tomcat server, ELB, auto-scaling-group.
 Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
-    Description: Enter a valid KeyPair Name
+    Description: Enter a valid KeyPair Name.
   WebInstanceType:
     Type: String
-    Description: Enter one of the possible instance type for web server
+    Description: Enter one of the possible instance type for web server.
     AllowedValues:
       - t2.micro
       - t2.large
@@ -16,19 +16,36 @@ Parameters:
       - c4.large
   WebMinSize:
     Type: String
-    Description: Minimum number of instances in auto scaling group
+    Description: Minimum number of instances in auto scaling group.
   WebMaxSize:
     Type: String
-    Description: Maximum number of instances in auto scaling group
+    Description: Maximum number of instances in auto scaling group.
   Environment:
     Type: String
-    Description: Select the appropriate environment
+    Description: Select the appropriate environment.
     AllowedValues:
       - dev
       - prod
-    
+  AutoscalingAvailZone:
+    Type: List<AWS::EC2::AvailabilityZone::Name>
+    Description: Select the availability zone of your private subnet for use in the autoscaling group.
+  
+  CustomPrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select a private subnet in the custom VPC.
+  
+  CustomPublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select a public subnet in the custom VPC.
+
+  CustomVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select an ID of a VPC that exists in the current region.
+
 Conditions:
   CreateProdResources: !Equals [ !Ref Environment, prod ]
+  NoVPCexists: !Equals ["", !Ref CustomVPC]
+
 
 
 Mappings:
@@ -63,9 +80,11 @@ Mappings:
       ImageId: ami-2cf54551
     sa-east-1:
       ImageId: ami-6dca9001
+  
   TomcatAmi:
     us-east-1:
-      ImageId: ami-009be716
+      ImageId: ami-0de53d8956e8dcf80
+  
   RegionToNatId:
     us-east-1:
       ImageId: ami-01623d7b
@@ -98,17 +117,17 @@ Mappings:
     sa-east-1:
       ImageId: ami-0b81dc67
 
-  
-
 
 Resources:
   #VPC Set up
   VPC:
     Type: 'AWS::EC2::VPC'
+    Condition: NoVPCexists
     Properties:
       CidrBlock: 10.0.0.0/16
   PublicSubnet:
     Type: 'AWS::EC2::Subnet'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -118,6 +137,7 @@ Resources:
           Value: Public Subnet
   PrivateSubnet:
     Type: 'AWS::EC2::Subnet'
+    Condition: NoVPCexists
     DependsOn: PublicSubnet
     Properties:
       VpcId: 
@@ -130,12 +150,14 @@ Resources:
       AvailabilityZone: 
         Fn::GetAtt: [PublicSubnet, AvailabilityZone]
   InternetGateway:
+    Condition: NoVPCexists
     Type: 'AWS::EC2::InternetGateway'
     Properties: {}
 
   #Routes
   PublicSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -144,6 +166,7 @@ Resources:
           Value: Public Subnet Route Table.
   PrivateSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -152,6 +175,7 @@ Resources:
           Value: Private Subnet Route Table.
   RouteToInternetGateway:
     Type: 'AWS::EC2::Route'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PublicSubnetRouteTable
@@ -160,6 +184,7 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
   RouteToNatInstance:
     Type: 'AWS::EC2::Route'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PrivateSubnetRouteTable
@@ -170,6 +195,7 @@ Resources:
   #Routing associations
   PublicSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PublicSubnetRouteTable
@@ -177,6 +203,7 @@ Resources:
         Ref: PublicSubnet
   PrivateSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Condition: NoVPCexists
     Properties:
       RouteTableId: 
         Ref: PrivateSubnetRouteTable
@@ -184,6 +211,7 @@ Resources:
         Ref: PrivateSubnet
   InternetGatewayAttachment:
     Type: 'AWS::EC2::VPCGatewayAttachment'
+    Condition: NoVPCexists
     Properties:
       VpcId: 
         Ref: VPC
@@ -203,8 +231,7 @@ Resources:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: 
-            Ref: PublicSubnet
+          SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
           GroupSet:
             - Ref: WebAppSecurityGroup
       Tags:
@@ -222,8 +249,7 @@ Resources:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: 
-            Ref: PublicSubnet
+          SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
           GroupSet:
             - Ref: WebAppSecurityGroup
       BlockDeviceMappings:
@@ -235,139 +261,49 @@ Resources:
       Tags:
         - Key: Name
           Value: NatInstance
-
-  TomcatServer:
-    Type: 'AWS::EC2::Instance'
+  MountTargetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      ImageId: !FindInMap [TomcatAmi, !Ref 'AWS::Region', ImageId]
-      InstanceType: 
-        Ref: WebInstanceType
-      KeyName: 
-        Ref: KeyPair
-      NetworkInterfaces:
-        - DeviceIndex: 0
-          AssociatePublicIpAddress: false
-          DeleteOnTermination: true
-          SubnetId: !Ref PrivateSubnet
-          GroupSet:
-            - !Ref WebAppSecurityGroup
-      Tags:
-        - Key: Name
-          Value: TomcatServer
-      UserData: 
-        Fn::Base64: |
-          #!/bin/bash
-          yum -y update
-          yum -y install httpd
-          service httpd start
-
-
-
-  #Load balancer properties
-  Elb:
-    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
-    Condition: CreateProdResources
-    Properties:
-      Type: network
-      Name: 'load-balancer'
-      Scheme: internet-facing
-      Subnets: 
-        - Ref: PublicSubnet
-      Tags:
-        - Key: Name
-          Value: 'this-loadbalancer'
-
-  ElbListener:
-    Type : AWS::ElasticLoadBalancingV2::Listener
-    Condition: CreateProdResources
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: 
-            Ref: ElbTargetGroup
-      LoadBalancerArn: 
-        Ref: Elb
-      Port: 80
-      Protocol: TCP
-
-  ElbTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Condition: CreateProdResources
-    Properties:
-      Name: 'targetsForELB'
-      Port: 80
-      Protocol: TCP
-      Targets:
-        - Id: 
-            Ref: TomcatServer
-      Tags:
-        - Key: Name
-          Value: alb-tg        
-      VpcId: 
+      VpcId:
         Ref: VPC
-
-
-  #Autoscaling configuration
-  EC2AutoScalingGroup:
-      Type: AWS::AutoScaling::AutoScalingGroup
-      Condition: CreateProdResources
-      Properties:
-        AvailabilityZones: 
-          - Fn::GetAtt: [PrivateSubnet, AvailabilityZone]
-          #Nice
-        #LaunchConfigurationName: Ref: Ec2Instance
-        InstanceId: 
-          Ref: TomcatServer
-        MinSize: 
-          Ref: WebMinSize
-        MaxSize: 
-          Ref: WebMaxSize
-        DesiredCapacity: 
-          Ref: WebMinSize
-        HealthCheckGracePeriod: 300
-        TargetGroupARNs:
-          - Ref: ElbTargetGroup
-        Tags:
-          - Key: Name
-            Value: 'auto-scaling-group'
-            PropagateAtLaunch: true
-
-  ScaleUpPolicy:
-    Type: AWS::AutoScaling::ScalingPolicy
-    Condition: CreateProdResources
+      GroupDescription: Security group for mount target
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '2049'
+        ToPort: '2049'
+        CidrIp: 0.0.0.0/0
+  FileSystem:
+    Type: AWS::EFS::FileSystem
     Properties:
-      AdjustmentType: ChangeInCapacity
-      AutoScalingGroupName:
-        Ref: EC2AutoScalingGroup
-      Cooldown: '1'
-      ScalingAdjustment: '1'
-
-  CPUAlarmHigh:
-    Type: AWS::CloudWatch::Alarm
-    Condition: CreateProdResources
-    Properties:
-      EvaluationPeriods: '1'
-      Statistic: Average
-      Threshold: '60'
-      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance
-        is down
-      Period: '60'
-      AlarmActions:
-      - Ref: ScaleUpPolicy
-      Namespace: AWS/EC2
-      Dimensions:
-      - Name: AutoScalingGroupName
+      PerformanceMode: generalPurpose
+      FileSystemTags:
+      - Key: Name
         Value:
-          Ref: EC2AutoScalingGroup
-      ComparisonOperator: GreaterThanThreshold
-      MetricName: CPUUtilization
-
+          Ref: VolumeName
+  MountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Ref: PublicSubnet
+      SecurityGroups:
+      - Ref: MountTargetSecurityGroup
+  MountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Ref: PrivateSubnet
+      SecurityGroups:
+      - Ref: MountTargetSecurityGroup
 
   #Security Group
   WebAppSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties: 
-      GroupDescription: SSH and HTTP
+      GroupDescription: SSH and HTTP and 8080 and Oracle RDS
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -377,25 +313,44 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-      VpcId: 
-        Ref: VPC
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 1521
+          ToPort: 1521
+          CidrIp: 0.0.0.0/0
+      VpcId: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
 
 Outputs:
   VpcId:
     Description: The ID of the VPC.
-    Value:
-      Ref: VPC
+    Value: !If [NoVPCexists, VPC, CustomVPC]
     Export:
       Name: VpcId
   PrivateSubnetId:
     Description: The ID of the private subnet.
-    Value: 
-      Ref: PrivateSubnet
+    Value: !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet]
     Export:
       Name: PrivateSubnetId
   PublicSubnetId:
     Description: The ID of the public subnet.
-    Value: 
-      Ref: PublicSubnet
+    Value: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
     Export:
       Name: PublicSubnetId
+  EFSId:
+    Description: The ID of the EFS
+    Value: !Ref FileSystem
+    Export:
+      Name: EFSId
+  AvailabilityZone:
+    Description: The AvailabilityZones available
+    Value: !If [NoVPCexists, !GetAtt PrivateSubnet.AvailabilityZone, !Ref AutoscalingAvailZone]
+    Export:
+      Name: SubnetAvailabilityZone
+  # PrivateSubnetAvailabilityZone:
+  #   Description: The AZ of the private subnet.
+  #   Value: !GetAtt 
+  #   Export:
+  #     Name: PrivateSubnetAvailabilityZone

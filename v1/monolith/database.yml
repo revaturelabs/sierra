@@ -96,6 +96,9 @@ Parameters:
     AllowedValues:
       - true
       - false
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
   #===============================================
   #     Storage size ranges enforced by AWS:
   # MySQL, MariaDB, PostgreSQL:
@@ -245,7 +248,8 @@ Resources:
       IamInstanceProfile:
         Ref: FullS3BucketsInstanceProfile
       ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]      
-      # KeyName: rhel-cloud-admin
+      KeyName: 
+        Ref: KeyPair
       InstanceType: t2.micro
       SecurityGroups: [!Ref OracleClientSG]
       Tags:
@@ -256,6 +260,7 @@ Resources:
           !Sub 
           - |
             #!/bin/bash
+            sudo su
             yum update -y
             echo '# .bash_profile' > /home/ec2-user/.bash_profile
             echo '' >> /home/ec2-user/.bash_profile
@@ -278,10 +283,10 @@ Resources:
             . /home/ec2-user/.bash_profile
             echo ${Endpoint} ${Username} ${Password} ${Port} ${Service} > /home/ec2-user/debugme
             # Start the shutdown on a timer here, in case initial SQL does not exist.
-            shutdown -h -t 60
+            #shutdown -h -t 60
             echo exit | /usr/lib/oracle/12.1/client64/bin/sqlplus  '${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Service})))' @/home/ec2-user/schema-generator.sql
             # echo "We did it!" >> /home/ec2-user/helpme
-            shutdown -h now
+            #shutdown -h now
           - {
             Endpoint: !GetAtt SierraRDS.Endpoint.Address,
             Username: !Ref DBUsername,

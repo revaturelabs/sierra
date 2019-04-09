@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Resources:
+  CloudWatchDashboard:
+    Type: "AWS::CloudWatch::Dashboard"
+    Properties:
+      DashboardName: HOSTNAME
+      DashboardBody: !Join [ "", ['{"widgets":[
+          {
+            "type":"metric",
+            "properties":{
+              "metrics":[
+                ["AWS/EC2","CPUUtilization","InstanceId",
+                 "', {"Fn::ImportValue": "EC2ID" }, '"] 
+              ],
+              "title":"CPU Utilization",
+              "period":60,
+              "region":"us-east-1"
+            }
+          }]}' ] ]
