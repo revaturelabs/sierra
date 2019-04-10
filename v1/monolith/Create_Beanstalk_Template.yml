@@ -1,0 +1,394 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Creates a beanstalk environment that contains a specific programming language environment.
+
+Parameters:
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Choose a valid KeyPair.
+  AutoScaleMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group.
+    Default: 1
+  AutoScaleMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group.
+    Default: 1
+  ApplicationName:
+    Type: String
+    Default: SierraApplication
+    Description: Name of the Beanstalk Application 
+  EnvironmentName:
+    Type: String
+    Default: SierraEnvironment
+    Description: Name of the Beanstalk Environment.
+  GitHubUsername:
+    Type: String
+    Default: Github-Username
+    Description: Enter GitHub Username  
+  GitHubPassword:
+    NoEcho: 'True'
+    Type: String
+    Description: Enter GitHub Password
+  Platform:
+    Type: String
+    Default: Tomcat
+    Description: Select the appropriate platform type.
+    AllowedValues:
+      - Tomcat
+      - Node.JS
+      - .Net
+      - Ruby
+      - Python
+      - PHP
+  #Existing VPC
+  CustomVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC to place your application in.
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Select the Security Group.
+  PublicSubnet1:
+    Description: Please enter the IP range (CIDR notation) for the public subnet.
+    Type: AWS::EC2::Subnet::Id
+    Default: 10.192.10.0/24
+  PrivateSubnet1:
+    Description: Please enter the IP range (CIDR notation) for the private subnet.
+    Type: AWS::EC2::Subnet::Id
+    Default: 10.192.20.0/24
+  WebInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for web server.
+    AllowedValues:
+      - t2.micro
+      - t2.large
+      - m4.large
+      - c4.large
+
+  
+Conditions:
+  NoVPCExists: !Equals ["", !Ref CustomVPC]
+  NetInstance: !Equals [".Net", !Ref Platform ]
+Mappings:
+  PlatformType: 
+    Tomcat: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v3.1.2 running Tomcat 8.5 Java 8
+    Node.JS: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v4.8.1 running Node.js
+    .Net: 
+      SolutionStackName: 64bit Windows Server 2016 v2.0.2 running IIS 10.0
+    Ruby: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.9.1 running Ruby 2.6 (Puma)
+    Python: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.1 running Python 3.6
+    PHP: 
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.7 running PHP 7.2
+  RegionToImageId:
+    us-east-1:
+      ImageId: ami-b70554c8
+    us-east-2:
+      ImageId: ami-8c122be9
+    us-west-1:
+      ImageId: ami-e0ba5c83
+    us-west-2:
+      ImageId: ami-a9d09ed1
+    ca-central-1:
+      ImageId: ami-0ee86a6a
+    ap-south-1:
+      ImageId: ami-d783a9b8
+    ap-northeast-1: 
+      ImageId: ami-e99f4896
+    ap-northeast-2:
+      ImageId: ami-afd86dc1
+    ap-southeast-1:
+      ImageId: ami-05868579
+    ap-southeast-2:
+      ImageId: ami-39f8215b
+    eu-central-1:
+      ImageId: ami-7c4f7097
+    eu-west-1:
+      ImageId: ami-466768ac
+    eu-west-2:
+      ImageId: ami-b8b45ddf
+    eu-west-3:
+      ImageId: ami-2cf54551
+    sa-east-1:
+      ImageId: ami-6dca9001
+  
+  TomcatAmi:
+    us-east-1:
+      ImageId: ami-0de53d8956e8dcf80
+  
+  RegionToNatId:
+    us-east-1:
+      ImageId: ami-01623d7b
+    us-east-2:
+      ImageId: ami-021e3167
+    us-west-1:
+      ImageId: ami-004b0f60
+    us-west-2:
+      ImageId: ami-0541ea7d
+    ca-central-1:
+      ImageId: ami-0b2d906f
+    ap-south-1:
+      ImageId: ami-0c184c63
+    ap-northeast-1: 
+      ImageId: ami-03cf3903
+    ap-northeast-2:
+      ImageId: ami-0199506f
+    ap-southeast-1:
+      ImageId: ami-018c3062
+    ap-southeast-2:
+      ImageId: ami-162c0c75
+    eu-central-1:
+      ImageId: ami-0097b5eb
+    eu-west-1:
+      ImageId: ami-076d5d61
+    eu-west-2:
+      ImageId: ami-0a4c5a6e
+    eu-west-3:
+      ImageId: ami-0fe35572
+    sa-east-1:
+      ImageId: ami-0b81dc67
+Resources:
+
+  #Set up a VPC if one isn't specified
+  VPC:
+    Type: AWS::EC2::VPC
+    Condition: NoVPCExists
+    Properties:
+      CidrBlock: 10.0.0.0/16
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Condition: NoVPCExists
+    Properties:
+      VpcId:
+        Ref: VPC
+        CidrBlock: 10.0.0.0/24
+        Tags:
+          - Key: Name
+            Value: Public Subnet
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Condition: NoVPCExists
+    DependsOn: PublicSubnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: 10.0.1.0/24
+      Tags:
+        - Key: Name
+          Value: Private Subnet
+      #Gets the public subnet
+      AvailabilityZone: 
+        Fn::GetAtt: [PublicSubnet, AvailabilityZone]
+  InternetGateway:
+    Condition: NoVPCExists
+    Type: AWS::EC2::InternetGateway
+    Properties: {}
+
+  #Routes
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: NoVPCExists
+    Properties:
+      VpcId: 
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value: Public Subnet Route Table.
+  PrivateSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: NoVPCExists
+    Properties:
+      VpcId: 
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value: Private Subnet Route Table.
+  RouteToInternetGateway:
+    Type: AWS::EC2::Route
+    Condition: NoVPCExists
+    Properties:
+      RouteTableId: 
+        Ref: PublicSubnetRouteTable
+      GatewayId: 
+        Ref: InternetGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  RouteToNatInstance:
+    Type: AWS::EC2::Route
+    Condition: NoVPCExists
+    Properties:
+      RouteTableId: 
+        Ref: PrivateSubnetRouteTable
+      InstanceId: 
+        Ref: NatInstance
+      DestinationCidrBlock: 0.0.0.0/0
+
+  #Routing associations
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: NoVPCExists
+    Properties:
+      RouteTableId: 
+        Ref: PublicSubnetRouteTable
+      SubnetId: 
+        Ref: PublicSubnet
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: NoVPCExists
+    Properties:
+      RouteTableId: 
+        Ref: PrivateSubnetRouteTable
+      SubnetId: 
+        Ref: PrivateSubnet1
+  InternetGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Condition: NoVPCExists
+    Properties:
+      VpcId: 
+        Ref: VPC
+      InternetGatewayId: 
+        Ref: InternetGateway
+
+  #Bastion Instance
+  Bastion:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: 
+        Ref: KeyPair
+      InstanceType:
+        Ref: WebInstanceType
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !If [NoVPCExists, !Ref PublicSubnet, !Ref PublicSubnet1]
+          GroupSet:
+            - Ref: SecurityGroup
+      Tags:
+        - Key: Name
+          Value: Bastion
+  #Nat Instance
+  NatInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: 
+        Ref: WebInstanceType
+      ImageId: !FindInMap [RegionToNatId, !Ref 'AWS::Region', ImageId]
+      SourceDestCheck: false #needs to be false for NAT instance to work.
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !If [NoVPCExists, !Ref PublicSubnet, !Ref PublicSubnet1]
+          GroupSet:
+            - Ref: SecurityGroup
+      BlockDeviceMappings:
+        -
+          DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+      Tags:
+        - Key: Name
+          Value: NatInstance
+
+  # Security group for Elastic Beanstalk server.
+  # Port 8080 is required for Tomcat
+  # Port 22 is required for SSH
+  WebAppSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties: 
+      GroupDescription: Platform SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+      Tags:
+        -
+          Key: "Name"
+          Value: "Tomcat Security"
+  # Elastic Beanstalk application
+  Application:
+   Type: AWS::ElasticBeanstalk::Application
+   Properties:
+     Description: AWS Elastic Beanstalk Application
+  # Application version used to deploy application on initial start-up of Elastic Beanstalk
+  # ApplicationVersion:
+  #  Type: AWS::ElasticBeanstalk::ApplicationVersion
+  #  Properties:
+  #    ApplicationName:
+  #      Ref: Application
+  #    Description: AWS ElasticBeanstalk Sample Application Version
+  #    SourceBundle:
+  #      S3Bucket: !Ref ArtifactStoreS3Location
+  #      S3Key: example.war
+  # Elastic Beanstalk application configuration template
+  AppConfigurationTemplate:
+   Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+   Properties:
+     ApplicationName:
+       Ref: Application
+     Description: AWS ElasticBeanstalk Sample Configuration Template
+     OptionSettings:
+    #  Configure Environment Variables:
+    #  - Namespace: aws:elasticbeanstalk:application:environment
+    #     OptionName: (ENVIRONMENT_VARIABLE)
+    #     Value: (VALUE)
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: SecurityGroups
+        Value: !Ref SecurityGroup
+      - Namespace: aws:autoscaling:asg
+        OptionName: MinSize
+        Value: !Ref AutoScaleMinSize
+      - Namespace: aws:autoscaling:asg
+        OptionName: MaxSize
+        Value: !Ref AutoScaleMaxSize
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: LoadBalanced
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName
+        Value: !Ref KeyPair
+      - Namespace: aws:ec2:vpc
+        OptionName: VPCId
+        Value: !Ref CustomVPC
+      - Namespace: aws:ec2:vpc
+        OptionName: Subnets
+        Value: !Ref PublicSubnet1
+      - Namespace: aws:ec2:vpc
+        OptionName: ELBSubnets
+        Value: !Ref PublicSubnet1
+
+     SolutionStackName: !FindInMap [PlatformType,!Ref Platform, SolutionStackName]
+
+     
+  # Elastic Beanstalk environment
+  PlatformEnvironment:
+   Type: AWS::ElasticBeanstalk::Environment
+   Properties:
+     ApplicationName:
+       Ref: Application
+     EnvironmentName:
+       Ref: EnvironmentName
+     Description: AWS ElasticBeanstalk Sample Environment
+     TemplateName:
+       Ref: AppConfigurationTemplate
+    # Apply Application Version:
+    #  VersionLabel:
+    #    Ref: ApplicationVersion
+Outputs:
+  EnvName:
+    Description: Name of Elastic Beanstalk deployed EC2s
+    Value: !Ref EnvironmentName
