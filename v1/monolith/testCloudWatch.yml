@@ -3,7 +3,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   ExistingDBInstanceName:
     Type: String
-    Description: Existing database instance name. Overrides new database settings if not blank.
+    Description: Existing database instance name.
     MinLength: 0
     MaxLength: 63
     AllowedPattern: "[a-z0-9-]*"
@@ -42,7 +42,7 @@ Resources:
             "type":"metric",
             "properties":{
               "metrics": [
-                [ "AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", "project3-ers" ]
+                [ "AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", "', {"Ref": "ExistingDBInstanceName" }, '" ]
               ],
               "title":"DatabaseConnections",
               "period":60,
