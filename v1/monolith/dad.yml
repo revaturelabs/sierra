@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation template for EC2 simple launching
+Parameters: 
+  InstanceName:
+    Description: Instance EC2 name
+    Type: String
+    Default: noname
+    AllowedPattern: "[-_ a-zA-Z0-9]*"
+    ConstraintDescription: Alphanumeric, dashes, and underscores only.
+  KeyName:
+    Description: EC2 Key pair for SSH access.
+    Type: String
+    Default: noname
+    MinLength: '6'
+    MaxLength: '20'
+    AllowedPattern: "[-_ a-zA-Z0-9]*"
+    ConstraintDescription: Alphanumeric, dashes, and underscores only.
+  InstanceType:
+    Description: Instance EC2 type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t2.large
+    ConstraintDescription: Only t2 micro or large instances.
+Mappings: 
+  RegionToImageId:
+    us-east-1:
+      ImageId: ami-0de53d8956e8dcf80
+    us-east-2:
+      ImageId: ami-02bcbb802e03574ba
+    us-west-1:
+      ImageId: ami-0019ef04ac50be30f
+    us-west-2:
+      ImageId: ami-061392db613a6357b
+    eu-central-1:
+      ImageId: ami-09def150731bdbcc2
+    eu-west-1:
+      ImageId: ami-07683a44e80cd32c5
+#Mandatory field, our AWS Resources
+Resources: 
+  #Security Group
+  WebAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebAppSecurityGroup
+      GroupDescription: HTTP and SSH access only.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '50.207.204.190/32'
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '50.207.204.190/32'
+  #EC2
+  ParameterizedEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyName
+      ImageId: !FindInMap [RegionToImageId, !Ref "AWS::Region", ImageId]
+      InstanceType: !Ref InstanceType
+      SecurityGroups: [!Ref WebAppSecurityGroup]
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [!Ref InstanceName, "cf"]]
+      UserData:
+        Fn::Base64: !Join ["", ["#!/bin/bash\n", "yum -y update\n", "yum -y install httpd\n", "echo 'CloudFormation!' >> /var/www/html/index.html\n", "sudo service httpd start\n"]]
+#Log as Output
+Outputs:
+  CreatedInstanceID:
+    Description: The created Instance ID
+    Value: !Ref ParameterizedEC2
+    Export:
+      Name: !Sub "${AWS::StackName}-InstanceID"
+  AssociatedSecurityGroup:
+    Description: Information about the value
+    Value: !Ref WebAppSecurityGroup
+
+
+#https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/outputs-section-structure.html
+#REFERENCE
