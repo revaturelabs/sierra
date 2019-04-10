@@ -1,0 +1,137 @@
+Description: Master Monolith Template
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  ResourceBucket:
+    Type: String
+    Description: S3Bucket where resources are stored.
+  FileName:
+    Type: String
+    Description: FileName of file containing environment variables
+  KeyPair:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Enter a valid KeyPair Name
+  WebInstanceType:
+    Type: String
+    Description: Enter one of the possible instance type for web server.
+    AllowedValues:
+      - t2.micro
+      - t2.large
+      - m4.large
+      - c4.large
+  WebMinSize:
+    Type: String
+    Description: Minimum number of instances in auto scaling group.
+  WebMaxSize:
+    Type: String
+    Description: Maximum number of instances in auto scaling group.
+  Environment:
+    Type: String
+    Description: Select the appropriate environment.
+    AllowedValues:
+      - dev
+      - prod
+  AutoscalingAvailZone:
+   # Type: List<AWS::EC2::AvailabilityZone::Name>
+   # Default: AWS::NoValue
+   Type: String
+   Default: ""
+   Description: Enter the availability zone of your private subnet for use in the autoscaling group.
+
+  CustomPrivateSubnet:
+    # Type: AWS::EC2::Subnet::Id
+    # Default: AWS::NoValue
+    Type: String
+    Default: ""
+    Description: Enter the private subnet's ID in the custom VPC.
+
+  CustomPublicSubnet:
+    # Type: AWS::EC2::Subnet::Id
+    # Default: AWS::NoValue
+    Type: String
+    Default: ""
+    Description: Enter the public subnet's ID in the custom VPC.
+
+  CustomVPC:
+    # Type: AWS::EC2::VPC::Id
+    # Default: AWS::NoValue
+    Type: String
+    Default: ""
+    Description: Enter the ID of a VPC that exists in the current region.
+
+  SSMParameter:
+    Type: String
+    Description: Name of the SSM Parameter store where environmental variables are stored
+
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
+
+Resources:
+  NetworkStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/network.yml" ] ]
+      Parameters: 
+        KeyPair:
+          Ref: KeyPair
+        WebInstanceType:
+          Ref: WebInstanceType
+        WebMinSize:
+          Ref: WebMinSize
+        WebMaxSize:
+          Ref: WebMaxSize
+        Environment:
+          Ref: Environment
+        AutoscalingAvailZone:
+          Ref: AutoscalingAvailZone
+        CustomPrivateSubnet:
+          Ref: CustomPrivateSubnet
+        CustomPublicSubnet:
+          Ref: CustomPublicSubnet
+        CustomVPC:
+          Ref: CustomVPC
+        FileName:
+          Ref: FileName
+        ResourceBucket:
+          Ref: ResourceBucket
+        SSMParameter:
+          Ref: SSMParameter
+        SSHLocation:
+          Ref: SSHLocation
+
+  JenkinsStack:
+    Type: "AWS::CloudFormation::Stack"
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/testJenkins.yml" ] ]
+      Parameters: 
+        KeyPair:
+          Ref: KeyPair
+        ResourceBucket:
+          Ref: ResourceBucket
+        FileName:
+          Ref: FileName
+        SSMParameter:
+          Ref: SSMParameter
+
+  CloudWatchStack:
+    Type: "AWS::CloudFormation::Stack"
+    DependsOn: JenkinsStack
+    Properties:
+      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/testCloudWatch.yml" ]]
+      Parameters:
+        ExistingDBInstanceName:
+          Ref: ExistingDBInstanceName
