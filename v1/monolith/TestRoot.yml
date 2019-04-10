@@ -129,11 +129,8 @@ Resources:
           Ref: FileName
         SSMParameter:
           Ref: SSMParameter
-<<<<<<< HEAD
         JDKVersion:
           Ref: JDKVersion
-=======
->>>>>>> f82b96e587bd6083b1fb0bbac4eea255f071ddea
 
   CloudWatchStack:
     Type: "AWS::CloudFormation::Stack"
