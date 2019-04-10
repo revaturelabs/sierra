@@ -13,6 +13,9 @@ Parameters:
   SSMParameter:
     Type: String
     Description: Name of the SSM Parameter store where environmental variables are stored
+  JDKVersion:
+    Type: String
+    Description: Name of the JDK stored in the ResourceBucket
 
 Mappings:
   RegionToImageId:
@@ -113,7 +116,7 @@ Resources:
             yum -y update
             yum -y install git
             wget ${JDK}
-            rpm -ivh jdk-8u111-linux-x64.rpm
+            rpm -ivh ${Vers}
             yum -y install maven
             amazon-linux-extras install -y tomcat8.5
             service tomcat start
@@ -169,7 +172,8 @@ Resources:
             EFSId: !ImportValue "EFSId",
             Region: !Ref 'AWS::Region',
             SSM: !Ref SSMParameter,
-            JDK: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/jdk-8u111-linux-x64.rpm"] ],
+            Vers: !Ref JDKVersion,
+            JDK: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/", !Ref JDKVersion] ],
             Auto: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/Project2Auto.xml"] ]
             }
 
