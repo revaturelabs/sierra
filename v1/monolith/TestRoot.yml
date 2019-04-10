@@ -78,9 +78,12 @@ Parameters:
     MinLength: 0
     MaxLength: 63
     AllowedPattern: "[a-z0-9-]*"
+<<<<<<< HEAD
   JDKVersion:
     Type: String
     Description: Name of the JDKVersion stored in the ResourceBucket
+=======
+>>>>>>> f82b96e587bd6083b1fb0bbac4eea255f071ddea
 
 Resources:
   NetworkStack:
@@ -129,8 +132,11 @@ Resources:
           Ref: FileName
         SSMParameter:
           Ref: SSMParameter
+<<<<<<< HEAD
         JDKVersion:
           Ref: JDKVersion
+=======
+>>>>>>> f82b96e587bd6083b1fb0bbac4eea255f071ddea
 
   CloudWatchStack:
     Type: "AWS::CloudFormation::Stack"
