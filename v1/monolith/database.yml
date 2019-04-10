@@ -24,6 +24,7 @@ Metadata:
           - DBPassword
           - DBPort
           - DBService
+          - DBRetentionPeriod
           - ResourcesBucket
           
 Parameters:
@@ -40,6 +41,7 @@ Parameters:
     MaxLength: 63
     Default: sierra-rds
     AllowedPattern: "[a-z0-9-]*"
+
   DBUsername:
     Type: String
     Description: Enter a valid Database username. (1-30 alphanumeric)
@@ -66,6 +68,14 @@ Parameters:
     Default: 1521
     MinValue: 1
     MaxValue: 65535
+
+  DBRetentionPeriod:
+    Type: String
+    Description: Enter the number of days that Amazon RDS should retain automatic backups of this DB instance.
+    Default: 7
+    MinLength: 0 
+    MaxLength: 35
+
   DBService:
     Type: String
     Description: Enter the service used in the database URL.
@@ -78,6 +88,7 @@ Parameters:
     Default: db.t2.micro
     AllowedValues:
       - db.t2.micro
+      - db.t2.small
       - db.t2.large
       - db.m3.medium
       - db.m3.2xlarge
@@ -96,6 +107,12 @@ Parameters:
     AllowedValues:
       - true
       - false
+  KeyName:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: Choose a KeyPair.
+
+  # Source DB instance must have backup retention enabled
+
   #===============================================
   #     Storage size ranges enforced by AWS:
   # MySQL, MariaDB, PostgreSQL:
@@ -183,6 +200,8 @@ Resources:
     Properties:
       AllocatedStorage:
         Ref: DBStorageSize
+      BackupRetentionPeriod: 
+        Ref: DBRetentionPeriod
       DBInstanceClass:
         Ref: DBInstanceType
       Engine: oracle-ee
@@ -198,6 +217,7 @@ Resources:
         Ref: DBInstanceName
       MultiAZ: 
         Ref: DBMultiAZ
+
   # Create EC2 profile for client
   FullS3BucketsInstanceProfile:
     Condition: CreatingNewDB
@@ -244,8 +264,9 @@ Resources:
       InstanceInitiatedShutdownBehavior: terminate
       IamInstanceProfile:
         Ref: FullS3BucketsInstanceProfile
-      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]      
-      # KeyName: rhel-cloud-admin
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]    
+      KeyName: 
+        Ref: KeyName  
       InstanceType: t2.micro
       SecurityGroups: [!Ref OracleClientSG]
       Tags:
