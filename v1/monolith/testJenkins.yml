@@ -16,38 +16,36 @@ Parameters:
 
 Mappings:
   RegionToImageId:
-    'ap-south-1':
-      ImageId: 'ami-082fe9ba7b92d0a7e'
-    'eu-west-3':
-      ImageId: 'ami-023b362174c8894ee'
-    'eu-west-2':
-      ImageId: 'ami-0038a47716a9e91e7'
-    'eu-west-1':
-      ImageId: 'ami-06dc323b7aa080f12'
-    'ap-northeast-2':
-      ImageId: 'ami-072c3ec677021554d'
-    'ap-northeast-1':
-      ImageId: 'ami-07e81a7b17cf8c3a2'
-    'sa-east-1':
-      ImageId: 'ami-06e17016eda0001a8'
-    'ca-central-1':
-      ImageId: 'ami-0b48846efa9caaee6'
-    'ap-southeast-1':
-      ImageId: 'ami-0a4e2522c3698af41'
-    'ap-southeast-2':
-      ImageId: 'ami-049e9cb17d592c674'
-    'eu-central-1':
-      ImageId: 'ami-019ca19c5fd16f425'
-    'us-east-1':
-      ImageId: 'ami-0fecdd48f46904f51'
-    'us-east-2':
-      ImageId: 'ami-081fbedd3fcffbbf3'
-    'us-west-1':
-      ImageId: 'ami-0328c920b3a414e0f'
-    'us-west-2':
-      ImageId: 'ami-080ccb6e3f985a4d4'
-    'eu-north-1':
-      ImageId: 'ami-0794714c13b24996b'
+    us-east-1:
+      ImageId: ami-b70554c8
+    us-east-2:
+      ImageId: ami-8c122be9
+    us-west-1:
+      ImageId: ami-e0ba5c83
+    us-west-2:
+      ImageId: ami-a9d09ed1
+    ca-central-1:
+      ImageId: ami-0ee86a6a
+    ap-south-1:
+      ImageId: ami-d783a9b8
+    ap-northeast-1: 
+      ImageId: ami-e99f4896
+    ap-northeast-2:
+      ImageId: ami-afd86dc1
+    ap-southeast-1:
+      ImageId: ami-05868579
+    ap-southeast-2:
+      ImageId: ami-39f8215b
+    eu-central-1:
+      ImageId: ami-7c4f7097
+    eu-west-1:
+      ImageId: ami-466768ac
+    eu-west-2:
+      ImageId: ami-b8b45ddf
+    eu-west-3:
+      ImageId: ami-2cf54551
+    sa-east-1:
+      ImageId: ami-6dca9001
 
 Resources:
   SSMRole: 
@@ -111,6 +109,41 @@ Resources:
           - |
             #!/bin/bash
             sudo su
+            #!/bin/bash
+            yum -y update
+            yum -y install git
+            wget ${JDK}
+            rpm -ivh jdk-8u111-linux-x64.rpm
+            yum -y install maven
+            amazon-linux-extras install -y tomcat8.5
+            service tomcat start
+            wget http://mirrors.jenkins.io/war-stable/latest/jenkins.war
+            mv jenkins.war /usr/share/tomcat/webapps
+            sleep 60
+            cd /usr/share/tomcat/.jenkins/
+            mkdir init.groovy.d
+            chown tomcat:tomcat /usr/share/tomcat/.jenkins/init.groovy.d
+            cd init.groovy.d
+            wget https://s3.amazonaws.com/siera-project/unlock.groovy
+            wget https://s3.amazonaws.com/siera-project/mavin-path.groovy
+            wget https://s3.amazonaws.com/siera-project/jdk.groovy
+            chown tomcat:tomcat /usr/share/tomcat/.jenkins/init.groovy.d/*
+            service tomcat restart
+            sleep 60
+            cd ~
+            wget ${Auto}
+            wget http://localhost:8080/jenkins/jnlpJars/jenkins-cli.jar
+            unzip -xvf jenkins-cli.jar
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin install-plugin git
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin install-plugin github
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin install-plugin pipeline
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin install-plugin CopyArtifact
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin safe-restart
+            sleep 60
+            cat Project2Auto.xml | java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin create-job AutoProd2
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
+            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
+            sleep 65
             cd ~
             wget ${Bucket}
             chmod 760 ${File}
@@ -121,19 +154,13 @@ Resources:
             cat ${File} >> /usr/share/tomcat/conf/tomcat.conf
             echo " " >> /usr/share/tomcat/conf/tomcat.conf
             aws ssm get-parameter --region ${Region} --name "${SSM}" | grep -oh "[a-zA-Z0-9_ ]*=[a-zA-Z0-9'_:@.-]*" >> /usr/share/tomcat/conf/tomcat.conf
-            source /usr/share/tomcat/conf/tomcat.conf
-            yum -y install git
-            wget https://s3.amazonaws.com/buckywucky/Project2Auto.xml
-            service tomcat start
+            source /usr/share/tomcat/conf/tomcat.
+            service tomcat restart
             yum install -y amazon-efs-utils
             mkdir shared
             echo "${EFSId}:/ /root/shared efs defaults,_netdev 0 0" >> /etc/fstab
             mount -t efs ${EFSId}:/ shared
             sleep 60
-            cat Project2Auto.xml | java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin create-job AutoProd2
-            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
-            java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
-            sleep 65
             echo "* * * * * cp -a /usr/share/tomcat/webapps/* shared/ " >> testCron
             crontab testCron
           - {
@@ -141,7 +168,9 @@ Resources:
             File: !Ref FileName,
             EFSId: !ImportValue "EFSId",
             Region: !Ref 'AWS::Region',
-            SSM: !Ref SSMParameter
+            SSM: !Ref SSMParameter,
+            JDK: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/jdk-8u111-linux-x64.rpm"] ],
+            Auto: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/Project2Auto.xml"] ]
             }
 
 Outputs:
@@ -150,3 +179,6 @@ Outputs:
     Value: !Ref JenkinsClient
     Export:
       Name: "JenkinsId"
+  WebhookURL:
+    Description: The url needed in github to connect the webhook to jenkins
+    Value: !Join ["", ["http://",  !GetAtt JenkinsClient.PublicIp, ":8080/jenkins/github-webhook/"]]

@@ -20,12 +20,6 @@ Parameters:
       - t2.large
       - m4.large
       - c4.large
-  JenkinsType:
-    Type: String
-    Description: Enter language you want Jenkins to build.
-    AllowedValues:
-      - Java
-      - NodeJs
   WebMinSize:
     Type: String
     Description: Minimum number of instances in auto scaling group.
@@ -78,10 +72,12 @@ Parameters:
     Default: 0.0.0.0/0
     AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
     ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
-
-Conditions:
-  JavaBuild: !Equals [ !Ref JenkinsType, Java]
-  NodeBuild: !Equals [ !Ref JenkinsType, NodeJs]
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
 
 Resources:
   NetworkStack:
@@ -118,7 +114,6 @@ Resources:
 
   JenkinsStack:
     Type: "AWS::CloudFormation::Stack"
-    Condition: JavaBuild
     DependsOn: NetworkStack
     Properties:
       TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/testJenkins.yml" ] ]
@@ -132,26 +127,11 @@ Resources:
         SSMParameter:
           Ref: SSMParameter
 
-  NodeJsJenkinsStack:
-    Type: "AWS::CloudFormation::Stack"
-    Condition: NodeBuild
-    DependsOn: NetworkStack
-    Properties:
-      TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/nodeJS-Jenkins.yml" ] ]
-      Parameters: 
-        KeyPair:
-          Ref: KeyPair
-        ResourceBucket:
-          Ref: ResourceBucket
-        FileName:
-          Ref: FileName
-        SSMParameter:
-          Ref: SSMParameter
-        SSHLocation:
-          Ref: SSHLocation
-
   CloudWatchStack:
     Type: "AWS::CloudFormation::Stack"
     DependsOn: JenkinsStack
     Properties:
       TemplateURL: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/testCloudWatch.yml" ]]
+      Parameters:
+        ExistingDBInstanceName:
+          Ref: ExistingDBInstanceName

@@ -602,6 +602,11 @@ Outputs:
       Name: "TomcatId"
   ELBId:
     Description: The Id of the Elastic Load Balancer
+    Condition: CreateProdResources
     Value: !Ref Elb
     Export:
       Name: "ELBId"
+  LoadBalancerDNSName:
+    Description: The DNSName of the backup load balancer
+    Condition: CreateProdResources
+    Value: !GetAtt Elb.DNSName

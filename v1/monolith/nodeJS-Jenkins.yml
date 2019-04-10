@@ -52,7 +52,7 @@ Resources:
           FromPort: '3000'
           ToPort: '3000'
           CidrIp: '0.0.0.0/0'
-  JenkinsServer:
+  JenkinsClient:
     Type: 'AWS::EC2::Instance'
     DependsOn: JenkinsSecurityGroup
     Properties:
@@ -82,3 +82,12 @@ Resources:
         - Key: Name
           Value: Jenkins-NodeJS-Server
 
+Outputs:
+  InstanceID:
+    Description: The Instance ID
+    Value: !Ref JenkinsClient
+    Export:
+      Name: "JenkinsId"
+  WebhookURL:
+    Description: The url needed in github to connect the webhook to jenkins
+    Value: !Join ["", ["http://",  !GetAtt JenkinsClient.PublicIp, ":8080/jenkins/github-webhook/"]]
