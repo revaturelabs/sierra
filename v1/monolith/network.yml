@@ -59,6 +59,19 @@ Parameters:
     Type: String
     Default: ""
     Description: Enter the ID of a VPC that exists in the current region.
+
+  SSMParameter:
+    Type: String
+    Description: Name of the SSM Parameter store where environmental variables are stored
+
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
     
 Conditions:
   CreateProdResources: !Equals [ !Ref Environment, prod ]
@@ -237,6 +250,51 @@ Resources:
         Ref: VPC
       InternetGatewayId: 
         Ref: InternetGateway
+  S3EndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: NoVPCexists
+    Properties: 
+      VpcId: !Ref VPC
+      RouteTableIds: 
+        - !Ref PrivateSubnetRouteTable
+      ServiceName: !Join ["", ["com.amazonaws.", !Ref 'AWS::Region', ".s3"]]
+      VpcEndpointType: Gateway
+  SSMEndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: NoVPCexists
+    Properties: 
+      VpcId: !Ref VPC
+      ServiceName: !Join ["", ["com.amazonaws.", !Ref 'AWS::Region', ".ssm"]]
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref PrivateSubnet
+      SecurityGroupIds: 
+        - !Ref WebAppSecurityGroup
+  EC2EndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: NoVPCexists
+    Properties: 
+      VpcId: !Ref VPC
+      ServiceName: !Join ["", ["com.amazonaws.", !Ref 'AWS::Region', ".ec2"]]
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref PrivateSubnet
+      SecurityGroupIds: 
+        - !Ref WebAppSecurityGroup
+  EC2MessageEndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: NoVPCexists
+    Properties: 
+      VpcId: !Ref VPC
+      ServiceName: !Join ["", ["com.amazonaws.", !Ref 'AWS::Region', ".ec2messages"]]
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref PrivateSubnet
+      SecurityGroupIds: 
+        - !Ref WebAppSecurityGroup
 
   #Instance Configurations
   Bastion:
@@ -306,19 +364,61 @@ Resources:
       SecurityGroups:
       - Ref: MountTargetSecurityGroup
 
+  SSMRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies: 
+        - 
+          PolicyName: "ssm"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Effect: "Allow"
+                Action: "ssm:*"
+                Resource: "*"
+        - 
+          PolicyName: "s3"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Effect: "Allow"
+                Action: "s3:*"
+                Resource: "*"
+  SSMInstanceProfile: 
+    Type: "AWS::IAM::InstanceProfile"
+    Properties: 
+      Path: "/"
+      Roles: 
+        - 
+          Ref: "SSMRole"
+
   TomcatServer:
     Type: 'AWS::EC2::Instance'
+    DependsOn: MountTarget1
     Properties:
-      ImageId: !FindInMap [TomcatAmi, !Ref 'AWS::Region', ImageId]
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
       InstanceType: 
         Ref: WebInstanceType
       KeyName: 
         Ref: KeyPair
       NetworkInterfaces:
         - DeviceIndex: 0
-          AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
+          SubnetId: !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet]
           GroupSet:
             - !Ref WebAppSecurityGroup
       Tags:
@@ -330,68 +430,60 @@ Resources:
           - |
             #!/bin/bash
             sudo su
+            yum -y install httpd
+            service httpd start
             amazon-linux-extras install -y tomcat8.5
             cd ~
             wget ${Bucket}
             chmod 760 ${File}
             cat ${File} >> /etc/environment
+            echo " " >> /etc/environment 
+            aws ssm get-parameter --region ${Region} --name "${SSM}" | grep -oh "[a-zA-Z0-9_ ]*=[a-zA-Z0-9'_:@.-]*" >> /etc/environment
             source /etc/environment
             cat ${File} >> /usr/share/tomcat/conf/tomcat.conf
+            echo " " >> /usr/share/tomcat/conf/tomcat.conf
+            aws ssm get-parameter --region ${Region} --name "${SSM}" | grep -oh "[a-zA-Z0-9_ ]*=[a-zA-Z0-9'_:@.-]*" >> /usr/share/tomcat/conf/tomcat.conf
             source /usr/share/tomcat/conf/tomcat.conf
             service tomcat start
             yum install -y amazon-efs-utils
             mkdir shared
             echo "${EFSId}:/ /root/shared efs defaults,_netdev 0 0" >> /etc/fstab
             mount -t efs ${EFSId}:/ shared
-            echo "* * * * * cp -a /root/shared/ERS.war /usr/share/tomcat/webapps " >> testCron
+            echo "* * * * * cp -a /root/shared/* /usr/share/tomcat/webapps " >> testCron
             crontab testCron
           - {
             Bucket: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/", !Ref FileName ] ],
             File: !Ref FileName,
-            EFSId: !Ref FileSystem
+            EFSId: !Ref FileSystem,
+            Region: !Ref 'AWS::Region',
+            SSM: !Ref SSMParameter
             }
 
   #Load balancer properties
   Elb:
-    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Condition: CreateProdResources
     Properties:
-      Type: network
-      Name: 'load-balancer'
-      Scheme: internet-facing
-      Subnets: 
-        - !If [NoVPCexists, !Ref PrivateSubnet, !Ref CustomPrivateSubnet] 
-      Tags:
-        - Key: Name
-          Value: 'this-loadbalancer'
-
-  ElbListener:
-    Type : AWS::ElasticLoadBalancingV2::Listener
-    Condition: CreateProdResources
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: 
-            Ref: ElbTargetGroup
-      LoadBalancerArn: 
-        Ref: Elb
-      Port: 80
-      Protocol: TCP
-
-  ElbTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Condition: CreateProdResources
-    Properties:
-      Name: 'targetsForELB'
-      Port: 80
-      Protocol: TCP
-      Targets:
-        - Id: 
-            Ref: TomcatServer
-      Tags:
-        - Key: Name
-          Value: alb-tg        
-      VpcId: !If [NoVPCexists, !Ref VPC, !Ref CustomVPC]
+      Subnets:
+        - !If [NoVPCexists, !Ref PublicSubnet, !Ref CustomPublicSubnet]
+      CrossZone: 'true'
+      Instances:
+        - !Ref TomcatServer 
+      Listeners:
+      - LoadBalancerPort: '8080'
+        InstancePort: '8080'
+        Protocol: TCP
+      - LoadBalancerPort: '80'
+        InstancePort: '80'
+        Protocol: HTTP
+      HealthCheck:
+        Target: TCP:8080
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '30'
+        Timeout: '5'
+      SecurityGroups:
+        - !Ref WebAppSecurityGroup
 
 
   #Autoscaling configuration
@@ -401,8 +493,6 @@ Resources:
       Properties:
         AvailabilityZones: 
           - !If [NoVPCexists, !GetAtt PrivateSubnet.AvailabilityZone, !Ref AutoscalingAvailZone] 
-          #Nice
-        #LaunchConfigurationName: Ref: Ec2Instance
         InstanceId: 
           Ref: TomcatServer
         MinSize: 
@@ -412,8 +502,8 @@ Resources:
         DesiredCapacity: 
           Ref: WebMinSize
         HealthCheckGracePeriod: 300
-        TargetGroupARNs:
-          - Ref: ElbTargetGroup
+        LoadBalancerNames:
+          - !Ref Elb
         Tags:
           - Key: Name
             Value: 'auto-scaling-group'
@@ -458,10 +548,14 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 0.0.0.0/0
+          CidrIp: !Ref SSHLocation
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 8080
@@ -501,3 +595,13 @@ Outputs:
       Ref: WebAppSecurityGroup
     Export:
       Name: WebAppSecurityGroupId
+  TomcatId:
+    Description: The Instance ID
+    Value: !Ref TomcatServer
+    Export:
+      Name: "TomcatId"
+  ELBId:
+    Description: The Id of the Elastic Load Balancer
+    Value: !Ref Elb
+    Export:
+      Name: "ELBId"

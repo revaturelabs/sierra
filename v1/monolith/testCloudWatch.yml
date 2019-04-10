@@ -1,5 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
+Parameters:
+  ExistingDBInstanceName:
+    Type: String
+    Description: Existing database instance name. Overrides new database settings if not blank.
+    MinLength: 0
+    MaxLength: 63
+    AllowedPattern: "[a-z0-9-]*"
+
 Resources:
   CloudWatchDashboard:
     Type: "AWS::CloudWatch::Dashboard"
@@ -11,10 +19,46 @@ Resources:
             "properties":{
               "metrics":[
                 ["AWS/EC2","CPUUtilization","InstanceId",
-                 "', {"Fn::ImportValue": "EC2ID" }, '"] 
+                 "', {"Fn::ImportValue": "TomcatId" }, '"] 
               ],
               "title":"CPU Utilization",
               "period":60,
-              "region":"us-east-1"
+              "region": "', {"Ref": 'AWS::Region'}, '"
+            }
+          },
+          {
+            "type":"metric",
+            "properties":{
+              "metrics":[
+                ["AWS/EC2","CPUUtilization","InstanceId",
+                 "', {"Fn::ImportValue": "JenkinsId" }, '"] 
+              ],
+              "title":"CPU Utilization",
+              "period":60,
+              "region": "', {"Ref": 'AWS::Region'}, '"
+            }
+          },
+          {
+            "type":"metric",
+            "properties":{
+              "metrics": [
+                [ "AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", "project3-ers" ]
+              ],
+              "title":"DatabaseConnections",
+              "period":60,
+              "region": "', {"Ref": 'AWS::Region'}, '"
+            }
+          },
+          {
+            "type":"metric",
+            "properties":{
+              "metrics":[
+                ["AWS/ELB","RequestCount","LoadBalancerName",
+                 "', {"Fn::ImportValue": "ELBId" }, '"] 
+              ],
+              "title":"RequestCount",
+              "stat":"Sum",
+              "period":60,
+              "region": "', {"Ref": 'AWS::Region'}, '"
             }
           }]}' ] ]

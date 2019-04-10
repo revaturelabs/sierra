@@ -10,44 +10,90 @@ Parameters:
   KeyPair:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Enter a valid KeyPair Name
+  SSMParameter:
+    Type: String
+    Description: Name of the SSM Parameter store where environmental variables are stored
 
 Mappings:
   RegionToImageId:
     'ap-south-1':
-      ImageId: 'ami-d783a9b8'
+      ImageId: 'ami-082fe9ba7b92d0a7e'
     'eu-west-3':
-      ImageId: 'ami-2cf54551'
+      ImageId: 'ami-023b362174c8894ee'
     'eu-west-2':
-      ImageId: 'ami-b8b45ddf'
+      ImageId: 'ami-0038a47716a9e91e7'
     'eu-west-1':
-      ImageId: 'ami-466768ac'
+      ImageId: 'ami-06dc323b7aa080f12'
     'ap-northeast-2':
-      ImageId: 'ami-afd86dc1'
+      ImageId: 'ami-072c3ec677021554d'
     'ap-northeast-1':
-      ImageId: 'ami-e99f4896'
+      ImageId: 'ami-07e81a7b17cf8c3a2'
     'sa-east-1':
-      ImageId: 'ami-6dca9001'
+      ImageId: 'ami-06e17016eda0001a8'
     'ca-central-1':
-      ImageId: 'ami-0ee86a6a'
+      ImageId: 'ami-0b48846efa9caaee6'
     'ap-southeast-1':
-      ImageId: 'ami-05868579'
+      ImageId: 'ami-0a4e2522c3698af41'
     'ap-southeast-2':
-      ImageId: 'ami-39f8215b'
+      ImageId: 'ami-049e9cb17d592c674'
     'eu-central-1':
-      ImageId: 'ami-7c4f7097'
+      ImageId: 'ami-019ca19c5fd16f425'
     'us-east-1':
       ImageId: 'ami-0fecdd48f46904f51'
     'us-east-2':
-      ImageId: 'ami-8c122be9'
+      ImageId: 'ami-081fbedd3fcffbbf3'
     'us-west-1':
-      ImageId: 'ami-e0ba5c83'
+      ImageId: 'ami-0328c920b3a414e0f'
     'us-west-2':
-      ImageId: 'ami-a9d09ed1'
+      ImageId: 'ami-080ccb6e3f985a4d4'
+    'eu-north-1':
+      ImageId: 'ami-0794714c13b24996b'
 
 Resources:
-  OracleClient:
+  SSMRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies: 
+        - 
+          PolicyName: "ssm"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Effect: "Allow"
+                Action: "ssm:*"
+                Resource: "*"
+        - 
+          PolicyName: "s3"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Effect: "Allow"
+                Action: "s3:*"
+                Resource: "*"
+  SSMInstanceProfile: 
+    Type: "AWS::IAM::InstanceProfile"
+    Properties: 
+      Path: "/"
+      Roles: 
+        - 
+          Ref: "SSMRole"
+  JenkinsClient:
     Type: AWS::EC2::Instance
     Properties:
+      IamInstanceProfile: !Ref SSMInstanceProfile
       ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]
       InstanceType: t2.micro
       KeyName: 
@@ -69,8 +115,12 @@ Resources:
             wget ${Bucket}
             chmod 760 ${File}
             cat ${File} >> /etc/environment
+            echo " " >> /etc/environment
+            aws ssm get-parameter --region ${Region} --name "${SSM}" | grep -oh "[a-zA-Z0-9_ ]*=[a-zA-Z0-9'_:@.-]*" >> /etc/environment
             source /etc/environment
             cat ${File} >> /usr/share/tomcat/conf/tomcat.conf
+            echo " " >> /usr/share/tomcat/conf/tomcat.conf
+            aws ssm get-parameter --region ${Region} --name "${SSM}" | grep -oh "[a-zA-Z0-9_ ]*=[a-zA-Z0-9'_:@.-]*" >> /usr/share/tomcat/conf/tomcat.conf
             source /usr/share/tomcat/conf/tomcat.conf
             yum -y install git
             wget https://s3.amazonaws.com/buckywucky/Project2Auto.xml
@@ -84,17 +134,19 @@ Resources:
             java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
             java -jar jenkins-cli.jar -s http://localhost:8080/jenkins/ -auth admin:admin build AutoProd2
             sleep 65
-            echo "* * * * * cp -a /usr/share/tomcat/webapps/ERS.war shared/ " >> testCron
+            echo "* * * * * cp -a /usr/share/tomcat/webapps/* shared/ " >> testCron
             crontab testCron
           - {
             Bucket: !Join [ "", [ "https://s3.amazonaws.com/", !Ref ResourceBucket, "/", !Ref FileName ] ],
             File: !Ref FileName,
-            EFSId: !ImportValue "EFSId"
+            EFSId: !ImportValue "EFSId",
+            Region: !Ref 'AWS::Region',
+            SSM: !Ref SSMParameter
             }
 
 Outputs:
   InstanceID:
     Description: The Instance ID
-    Value: !Ref OracleClient
+    Value: !Ref JenkinsClient
     Export:
-      Name: "EC2ID"
+      Name: "JenkinsId"
