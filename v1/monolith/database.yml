@@ -107,9 +107,6 @@ Parameters:
     AllowedValues:
       - true
       - false
-  KeyName:
-    Type: "AWS::EC2::KeyPair::KeyName"
-    Description: Choose a KeyPair.
 
   # Source DB instance must have backup retention enabled
 
@@ -265,8 +262,6 @@ Resources:
       IamInstanceProfile:
         Ref: FullS3BucketsInstanceProfile
       ImageId: !FindInMap [RegionToImageId, !Ref 'AWS::Region', ImageId]    
-      KeyName: 
-        Ref: KeyName  
       InstanceType: t2.micro
       SecurityGroups: [!Ref OracleClientSG]
       Tags:
