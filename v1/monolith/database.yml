@@ -107,7 +107,6 @@ Parameters:
     AllowedValues:
       - true
       - false
-#################################=NEW=###########################################
   KeyName:
     Type: "AWS::EC2::KeyPair::KeyName"
     Description: Choose a KeyPair.
@@ -278,7 +277,6 @@ Resources:
           !Sub 
           - |
             #!/bin/bash
-            sudo su #New
             yum update -y
             echo '# .bash_profile' > /home/ec2-user/.bash_profile
             echo '' >> /home/ec2-user/.bash_profile
@@ -295,18 +293,16 @@ Resources:
             echo 'export PATH' >> /home/ec2-user/.bash_profile
             echo 'export ORACLE_HOME' >> /home/ec2-user/.bash_profile
             echo 'export LD_LIBRARY_PATH' >> /home/ec2-user/.bash_profile
-            yum update -y #New
-            yum upgrade -y #New
             aws s3 sync s3://${Bucket} /home/ec2-user/
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-basic-12.1.0.2.0-1.x86_64.rpm
             rpm -ivh /home/ec2-user/oracle-instantclient12.1-sqlplus-12.1.0.2.0-1.x86_64.rpm
             . /home/ec2-user/.bash_profile
             echo ${Endpoint} ${Username} ${Password} ${Port} ${Service} > /home/ec2-user/debugme
             # Start the shutdown on a timer here, in case initial SQL does not exist.
-            ##shutdown -h -t 60
+            shutdown -h -t 60
             echo exit | /usr/lib/oracle/12.1/client64/bin/sqlplus  '${Username}/${Password}@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${Endpoint})(PORT=${Port}))(CONNECT_DATA=(SID=${Service})))' @/home/ec2-user/schema-generator.sql
             # echo "We did it!" >> /home/ec2-user/helpme
-            ##shutdown -h now
+            shutdown -h now
           - {
             Endpoint: !GetAtt SierraRDS.Endpoint.Address,
             Username: !Ref DBUsername,
