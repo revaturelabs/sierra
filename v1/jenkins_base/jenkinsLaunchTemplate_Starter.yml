@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: '2010-09-09'
 Description: Launches a Jenkins server.
 Parameters:
   InstanceType:
@@ -124,7 +124,7 @@ Resources:
       Policies:
         - PolicyName: root
           PolicyDocument:
-            Version: 2012-10-17
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action: '*'
@@ -134,7 +134,7 @@ Resources:
     Properties:
       PolicyName: root
       PolicyDocument:
-        Version: 2012-10-17
+        Version: '2012-10-17'
         Statement:
           - Action: 'ec2:*'
             Effect: Allow
@@ -667,5 +667,5 @@ Outputs:
     Description: Jenkins URL
     Value: !Join 
       - ''
-      - - 'http://'
+      - - 'http://ec2-100-27-13-38.compute-1.amazonaws.com'
         - !Ref DnsRecord
