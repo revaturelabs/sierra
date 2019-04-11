@@ -1,1 +1,0 @@
-The contents of this directory are not currently being used for this project. However, they are being retained as they may be useful in the future when support for larger microservice applications is added.
